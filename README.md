@@ -8,6 +8,8 @@ Bootstrap and configuration scripts for a disposable Ubuntu VPS running OpenClaw
 
 This repo defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
 
+ZeroTier is part of the baseline, not an optional add-on. The intended access model is SSH over the VPS public IP for initial provisioning, then OpenClaw over the private ZeroTier network.
+
 ### Goals
 
 * Rebuild from scratch in minutes
@@ -46,21 +48,51 @@ sudo bash bootstrap.sh
 
 During bootstrap you may be prompted for:
 
-* ZeroTier Network ID (optional)
-* Whether to install Docker
-* Whether to expose OpenClaw on ZeroTier through a reverse proxy
+* ZeroTier Network ID (required)
+* Whether to install Docker, default `yes`
+* Whether to install OpenClaw, default `yes`
+* Whether to expose OpenClaw on ZeroTier through a reverse proxy, default `yes`
 
 ---
 
-### 4. Optional: run with Docker automatically
+### 4. Optional: run non-interactively
 
 ```bash
-sudo bash bootstrap.sh --with-docker
+sudo bash bootstrap.sh --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID --yes
 ```
 
 ---
 
-### 5. Reboot (if required)
+### 5. Resume from a specific step
+
+If a run is interrupted, call `bootstrap.sh` again with `--from`:
+
+```bash
+sudo bash bootstrap.sh --from docker
+sudo bash bootstrap.sh --from openclaw
+sudo bash bootstrap.sh --from proxy
+```
+
+Available steps:
+
+* `base` — system packages, firewall, fail2ban
+* `zerotier` — install ZeroTier and join the required network
+* `docker` — install Docker
+* `openclaw` — install OpenClaw
+* `proxy` — expose OpenClaw to ZeroTier peers through Caddy
+* `reboot-check` — check whether the VPS needs a reboot
+
+Useful skip flags:
+
+```bash
+sudo bash bootstrap.sh --skip-docker
+sudo bash bootstrap.sh --skip-openclaw
+sudo bash bootstrap.sh --skip-proxy
+```
+
+---
+
+### 6. Reboot (if required)
 
 ```bash
 sudo reboot
@@ -76,8 +108,7 @@ sudo reboot
 ├── scripts/
 │   ├── install-docker.sh     # Docker installation
 │   ├── install-openclaw.sh   # OpenClaw install (official Docker setup)
-│   ├── expose-openclaw-zerotier.sh
-│   │                           # Caddy reverse proxy bound to ZeroTier only
+│   └── expose-openclaw-zerotier.sh # ZeroTier-only Caddy proxy
 └── README.md
 ```
 
@@ -92,7 +123,7 @@ Handled by `bootstrap.sh`:
 * System update/upgrade
 * Base package install (`curl`, `git`, `ufw`, `fail2ban`)
 * Firewall configuration
-* ZeroTier install and optional network join
+* ZeroTier install and required network join
 
 This stage prepares a **secure, minimal, network-ready host**.
 
@@ -150,6 +181,7 @@ sudo ZT_DETECT_RETRIES=5 bash scripts/expose-openclaw-zerotier.sh
 
 * Primary access via ZeroTier private network
 * Public exposure should be avoided where possible
+* ZeroTier setup is required before exposing OpenClaw
 
 Default open ports:
 
@@ -193,7 +225,6 @@ Future option:
 ## Future Work
 
 * Restrict SSH access to ZeroTier after initial provisioning
-* Non-interactive bootstrap flags for fully automated rebuilds
 * Automated rebuild workflow
 * Optional SSH hardening script
 
