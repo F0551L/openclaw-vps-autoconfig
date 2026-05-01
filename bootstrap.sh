@@ -5,6 +5,10 @@ START_STEP="base"
 INSTALL_DOCKER=true
 INSTALL_OPENCLAW=true
 EXPOSE_OPENCLAW_ZT=true
+CREATE_ADMIN_USER=true
+ADMIN_USER="${ADMIN_USER:-ocadmin}"
+LOCK_BOOTSTRAP_USER_ON_SUCCESS=false
+ADMIN_USER_READY=false
 ZT_NETWORK_ID="${ZT_NETWORK_ID:-}"
 
 usage() {
@@ -13,8 +17,11 @@ Usage: sudo bash bootstrap.sh [options]
 
 Options:
   --from STEP                 Start from STEP and continue onward.
-                              Steps: base, zerotier, docker, openclaw, proxy, reboot-check
+                              Steps: base, admin-user, zerotier, docker, openclaw, proxy, reboot-check
+  --admin-user USER           Admin sudo user to create. Default: ocadmin.
   --zerotier-network-id ID    ZeroTier network ID to join.
+  --skip-admin-user           Skip admin user creation.
+  --lock-bootstrap-user       Lock the original sudo user after admin user setup succeeds.
   --skip-docker               Skip Docker installation.
   --skip-openclaw             Skip OpenClaw installation.
   --skip-proxy                Skip ZeroTier reverse proxy setup.
@@ -23,10 +30,18 @@ Options:
 
 Environment:
   ZT_NETWORK_ID               ZeroTier network ID to join.
+  ADMIN_USER                  Admin sudo user to create.
+  ADMIN_SSH_PUBLIC_KEY        SSH public key to install for the admin user.
+  ADMIN_SSH_PUBLIC_KEY_FILE   File containing an SSH public key to install.
+  ADMIN_PASSWORD_PROMPT       Set true to prompt for an admin user password.
+  ADMIN_PASSWORD_FILE         File containing the admin user password.
+  LOCK_BOOTSTRAP_USER_ON_SUCCESS
+                              Set true to lock the original sudo user after admin user setup.
 
 Examples:
   sudo bash bootstrap.sh
   sudo bash bootstrap.sh --zerotier-network-id 0123456789abcdef
+  sudo bash bootstrap.sh --admin-user albert
   sudo bash bootstrap.sh --from docker
   sudo bash bootstrap.sh --from proxy
 EOF
@@ -35,11 +50,12 @@ EOF
 step_number() {
   case "$1" in
     base|bootstrap) echo 1 ;;
-    zerotier|zt) echo 2 ;;
-    docker) echo 3 ;;
-    openclaw) echo 4 ;;
-    proxy|expose|zerotier-proxy) echo 5 ;;
-    reboot-check|reboot) echo 6 ;;
+    admin-user|admin|user) echo 2 ;;
+    zerotier|zt) echo 3 ;;
+    docker) echo 4 ;;
+    openclaw) echo 5 ;;
+    proxy|expose|zerotier-proxy) echo 6 ;;
+    reboot-check|reboot) echo 7 ;;
     *)
       echo "Unknown step: $1" >&2
       usage >&2
@@ -76,6 +92,33 @@ run_script() {
   fi
 }
 
+lock_bootstrap_user() {
+  local bootstrap_user="${SUDO_USER:-}"
+
+  if [[ "$LOCK_BOOTSTRAP_USER_ON_SUCCESS" != "true" ]]; then
+    return 0
+  fi
+
+  if ! $ADMIN_USER_READY; then
+    echo "Admin user setup did not run successfully in this bootstrap session; skipping bootstrap user lock."
+    return 0
+  fi
+
+  if [[ -z "$bootstrap_user" || "$bootstrap_user" == "root" || "$bootstrap_user" == "$ADMIN_USER" ]]; then
+    echo "No separate bootstrap user to lock."
+    return 0
+  fi
+
+  if ! id "$bootstrap_user" >/dev/null 2>&1; then
+    echo "Bootstrap user not found, skipping lock: $bootstrap_user"
+    return 0
+  fi
+
+  echo "== Locking bootstrap user =="
+  passwd --lock "$bootstrap_user" >/dev/null
+  echo "Locked password login for bootstrap user: $bootstrap_user"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --from)
@@ -94,6 +137,22 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       shift 2
+      ;;
+    --admin-user)
+      ADMIN_USER="${2:-}"
+      if [[ -z "$ADMIN_USER" ]]; then
+        echo "--admin-user requires a value."
+        exit 1
+      fi
+      shift 2
+      ;;
+    --skip-admin-user|--no-admin-user)
+      CREATE_ADMIN_USER=false
+      shift
+      ;;
+    --lock-bootstrap-user|--lock-permissions-on-success)
+      LOCK_BOOTSTRAP_USER_ON_SUCCESS=true
+      shift
       ;;
     --skip-docker|--no-docker)
       INSTALL_DOCKER=false
@@ -128,6 +187,9 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+export ADMIN_USER
+export LOCK_BOOTSTRAP_USER_ON_SUCCESS
+
 echo "== Bootstrap start =="
 echo "Starting from step: $START_STEP"
 
@@ -140,6 +202,7 @@ if should_run base; then
   apt install -y \
     curl \
     git \
+    sudo \
     ufw \
     fail2ban \
     ca-certificates \
@@ -152,6 +215,15 @@ if should_run base; then
   ufw allow 9993/udp
   #ufw allow 9993/tcp     # disabled for now
   ufw --force enable
+fi
+
+if should_run admin-user; then
+  if $CREATE_ADMIN_USER; then
+    run_script "scripts/create-admin-user.sh"
+    ADMIN_USER_READY=true
+  else
+    echo "Skipping admin user creation"
+  fi
 fi
 
 if should_run zerotier; then
@@ -214,6 +286,8 @@ if should_run proxy; then
 fi
 
 if should_run reboot-check; then
+  lock_bootstrap_user
+
   echo "== Checking reboot requirement =="
   if [[ -f /var/run/reboot-required ]]; then
     echo "Reboot required. Run: sudo reboot"

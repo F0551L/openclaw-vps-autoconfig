@@ -50,7 +50,7 @@ During bootstrap you may be prompted for:
 
 * ZeroTier Network ID (required)
 
-Docker, OpenClaw, and the ZeroTier reverse proxy run by default. Use the skip flags below when you want to stop before one of those stages.
+Bootstrap creates a sudo-capable `ocadmin` user by default. Docker, OpenClaw, and the ZeroTier reverse proxy also run by default. Use the skip flags below when you want to stop before one of those stages.
 
 ---
 
@@ -58,6 +58,27 @@ Docker, OpenClaw, and the ZeroTier reverse proxy run by default. Use the skip fl
 
 ```bash
 sudo bash bootstrap.sh --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID
+sudo bash bootstrap.sh --admin-user openclaw --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID
+```
+
+To install an SSH public key for the admin user during bootstrap:
+
+```bash
+sudo env ADMIN_SSH_PUBLIC_KEY_FILE=/root/.ssh/authorized_keys bash bootstrap.sh --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID
+```
+
+By default, password login for the admin user remains locked. To set an initial password, prefer a hidden prompt:
+
+```bash
+sudo env ADMIN_PASSWORD_PROMPT=true bash bootstrap.sh --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID
+```
+
+For non-interactive rebuilds, use a root-only password file instead of putting the password directly in a command:
+
+```bash
+sudo install -m 600 /dev/null /root/ocadmin.password
+sudo nano /root/ocadmin.password
+sudo env ADMIN_PASSWORD_FILE=/root/ocadmin.password bash bootstrap.sh --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID
 ```
 
 ---
@@ -75,6 +96,7 @@ sudo bash bootstrap.sh --from proxy
 Available steps:
 
 * `base` — system packages, firewall, fail2ban
+* `admin-user` — create a sudo-capable admin user, default `ocadmin`
 * `zerotier` — install ZeroTier and join the required network
 * `docker` — install Docker
 * `openclaw` — install OpenClaw
@@ -84,9 +106,16 @@ Available steps:
 Useful skip flags:
 
 ```bash
+sudo bash bootstrap.sh --skip-admin-user
 sudo bash bootstrap.sh --skip-docker
 sudo bash bootstrap.sh --skip-openclaw
 sudo bash bootstrap.sh --skip-proxy
+```
+
+To lock the original sudo/bootstrap user after the `ocadmin` account is created successfully:
+
+```bash
+sudo bash bootstrap.sh --lock-bootstrap-user --zerotier-network-id YOUR_ZEROTIER_NETWORK_ID
 ```
 
 ---
@@ -105,6 +134,7 @@ sudo reboot
 .
 ├── bootstrap.sh              # Base system setup (packages, firewall, ZeroTier)
 ├── scripts/
+│   ├── create-admin-user.sh  # Sudo admin user creation
 │   ├── install-docker.sh     # Docker installation
 │   ├── install-openclaw.sh   # OpenClaw install (official Docker setup)
 │   └── expose-openclaw-zerotier.sh # ZeroTier-only Caddy proxy
@@ -122,6 +152,7 @@ Handled by `bootstrap.sh`:
 * System update/upgrade
 * Base package install (`curl`, `git`, `ufw`, `fail2ban`)
 * Firewall configuration
+* Admin user creation
 * ZeroTier install and required network join
 
 This stage prepares a **secure, minimal, network-ready host**.
@@ -196,8 +227,11 @@ Future option:
 
 ## Security Notes
 
-* Change passwords immediately after bootstrap
-* Consider SSH key authentication (optional but recommended)
+* Change provider/root passwords immediately after bootstrap
+* Prefer SSH key authentication
+* Bootstrap creates a password-locked, passwordless-sudo `ocadmin` user by default
+* Use `ADMIN_PASSWORD_PROMPT=true` or a root-only `ADMIN_PASSWORD_FILE` if password login is needed
+* Use `--lock-bootstrap-user` only after you have confirmed the new admin account works
 * Keep exposed ports to a minimum
 * Prefer private network access over public endpoints
 
