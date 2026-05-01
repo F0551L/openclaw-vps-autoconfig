@@ -1,0 +1,24 @@
+# Local environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Codex/Git helper scratch files
+.codex-gitconfig
