@@ -91,6 +91,20 @@ else
   echo "Skipping OpenClaw install"
 fi
 
+echo ""
+read -rp "Expose OpenClaw on ZeroTier with a reverse proxy now? [y/N]: " EXPOSE_OPENCLAW_ZT
+
+if [[ "$EXPOSE_OPENCLAW_ZT" =~ ^[Yy]$ ]]; then
+  if [[ -f scripts/expose-openclaw-zerotier.sh ]]; then
+    echo "== Configuring OpenClaw ZeroTier reverse proxy =="
+    bash scripts/expose-openclaw-zerotier.sh
+  else
+    echo "ZeroTier reverse proxy script not found: scripts/expose-openclaw-zerotier.sh"
+  fi
+else
+  echo "Skipping OpenClaw ZeroTier reverse proxy"
+fi
+
 echo "== Checking reboot requirement =="
 if [[ -f /var/run/reboot-required ]]; then
   echo "Reboot required. Run: sudo reboot"

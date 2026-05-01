@@ -48,6 +48,7 @@ During bootstrap you may be prompted for:
 
 * ZeroTier Network ID (optional)
 * Whether to install Docker
+* Whether to expose OpenClaw on ZeroTier through a reverse proxy
 
 ---
 
@@ -75,6 +76,8 @@ sudo reboot
 ├── scripts/
 │   ├── install-docker.sh     # Docker installation
 │   ├── install-openclaw.sh   # OpenClaw install (official Docker setup)
+│   ├── expose-openclaw-zerotier.sh
+│   │                           # Caddy reverse proxy bound to ZeroTier only
 │   └── harden-ssh.sh         # Optional SSH hardening
 └── README.md
 ```
@@ -111,6 +114,35 @@ This separation allows:
 
 OpenClaw is installed using its official Docker-based setup script, which manages its own containers and configuration.
 
+### Stage 3 — ZeroTier-only OpenClaw access
+
+Handled by `scripts/expose-openclaw-zerotier.sh`:
+
+* Detects the VPS ZeroTier IPv4 address
+* Generates a Caddy reverse proxy config
+* Runs Caddy as a Docker container with host networking
+* Binds the proxy to the ZeroTier address only
+* Allows the proxy port through UFW on the ZeroTier interface only
+
+By default, OpenClaw remains on the host loopback address at `127.0.0.1:18789`, and the proxy exposes it to ZeroTier peers at:
+
+```bash
+http://ZEROTIER_IP/
+```
+
+Run manually after OpenClaw is installed:
+
+```bash
+sudo bash scripts/expose-openclaw-zerotier.sh
+```
+
+Optional overrides:
+
+```bash
+sudo PROXY_PORT=8080 bash scripts/expose-openclaw-zerotier.sh
+sudo OPENCLAW_UPSTREAM=127.0.0.1:18789 PROXY_PORT=8080 bash scripts/expose-openclaw-zerotier.sh
+```
+
 ---
 
 ## Networking
@@ -122,6 +154,7 @@ Default open ports:
 
 * `22/tcp` — SSH
 * `9993/udp` — ZeroTier
+* OpenClaw reverse proxy port — ZeroTier interface only, if enabled
 
 Future option:
 
@@ -159,7 +192,6 @@ Future option:
 ## Future Work
 
 * Docker Compose–based OpenClaw deployment
-* Reverse proxy (Caddy / Nginx)
 * ZeroTier-only service exposure model
 * Automated rebuild workflow
 * Optional SSH hardening improvements
