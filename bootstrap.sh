@@ -16,16 +16,16 @@ usage() {
 Usage: sudo bash bootstrap.sh [options]
 
 Options:
-  --from STEP                 Start from STEP and continue onward.
+  -f, --from STEP             Start from STEP and continue onward.
                               Steps: base, admin-user, zerotier, docker, openclaw, proxy, reboot-check
-  --admin-user USER           Admin sudo user to create. Default: ocadmin.
-  --zerotier-network-id ID    ZeroTier network ID to join.
-  --skip-admin-user           Skip admin user creation.
-  --lock-bootstrap-user       Lock the original sudo user after admin user setup succeeds.
-  --skip-docker               Skip Docker installation.
-  --skip-openclaw             Skip OpenClaw installation.
-  --skip-proxy                Skip ZeroTier reverse proxy setup.
-  --with-docker               Deprecated; Docker is installed by default.
+  -au, --admin-user USER      Admin sudo user to create. Default: ocadmin.
+  -n, --zerotier-network-id ID
+                              ZeroTier network ID to join.
+  -sau, --skip-admin-user     Skip admin user creation.
+  -lbu, --lock-bootstrap-user Lock the original sudo user after admin user setup succeeds.
+  -sd, --skip-docker          Skip Docker installation.
+  -soc, --skip-openclaw       Skip OpenClaw installation.
+  -sp, --skip-proxy           Skip ZeroTier reverse proxy setup.
   -h, --help                  Show this help.
 
 Environment:
@@ -39,11 +39,10 @@ Environment:
                               Set true to lock the original sudo user after admin user setup.
 
 Examples:
-  sudo bash bootstrap.sh
-  sudo bash bootstrap.sh --zerotier-network-id 0123456789abcdef
-  sudo bash bootstrap.sh --admin-user albert
-  sudo bash bootstrap.sh --from docker
-  sudo bash bootstrap.sh --from proxy
+  sudo bash bootstrap.sh -n 0123456789abcdef
+  sudo bash bootstrap.sh -au openclaw -n 0123456789abcdef
+  sudo bash bootstrap.sh -f docker
+  sudo bash bootstrap.sh -f proxy
 EOF
 }
 
@@ -71,6 +70,11 @@ should_run() {
 
 require_zerotier_network_id() {
   while [[ -z "$ZT_NETWORK_ID" ]]; do
+    if [[ ! -t 0 ]]; then
+      echo "ZeroTier network ID is required. Pass it with -n ID."
+      exit 1
+    fi
+
     read -rp "Enter ZeroTier Network ID: " ZT_NETWORK_ID
   done
 
@@ -79,6 +83,69 @@ require_zerotier_network_id() {
     echo "Expected a 16-character hexadecimal network ID."
     exit 1
   fi
+}
+
+ensure_zerotier_installed() {
+  echo "== Installing ZeroTier =="
+  if command -v zerotier-cli >/dev/null 2>&1; then
+    echo "ZeroTier already installed"
+  else
+    curl -s https://install.zerotier.com | bash
+  fi
+}
+
+ensure_zerotier_service() {
+  echo "== Enabling ZeroTier service =="
+  systemctl enable --now zerotier-one
+
+  until zerotier-cli info >/dev/null 2>&1; do
+    echo "Waiting for ZeroTier service..."
+    sleep 1
+  done
+}
+
+show_zerotier_node() {
+  echo "ZeroTier node ID:"
+  zerotier-cli info
+}
+
+zerotier_has_connected_network() {
+  command -v zerotier-cli >/dev/null 2>&1 || return 1
+  zerotier-cli listnetworks 2>/dev/null | awk '/^200 listnetworks/ && $6 == "OK" { found = 1 } END { exit found ? 0 : 1 }'
+}
+
+join_zerotier_network() {
+  require_zerotier_network_id
+
+  if zerotier-cli listnetworks 2>/dev/null | awk '{ print $3 }' | grep -qi "^${ZT_NETWORK_ID}$"; then
+    echo "Already joined ZeroTier network: $ZT_NETWORK_ID"
+  else
+    echo "Joining ZeroTier network: $ZT_NETWORK_ID"
+    zerotier-cli join "$ZT_NETWORK_ID"
+  fi
+}
+
+ensure_zerotier_connected_for_resume() {
+  if ! { [[ "$START_STEP" == "docker" || "$START_STEP" == "openclaw" ]]; }; then
+    return 0
+  fi
+
+  if zerotier_has_connected_network; then
+    return 0
+  fi
+
+  echo "== ZeroTier resume preflight =="
+  echo "No connected ZeroTier network found."
+
+  if ! command -v zerotier-cli >/dev/null 2>&1; then
+    echo "ZeroTier is not installed. Resume from the zerotier step instead:"
+    echo "  sudo bash bootstrap.sh -f zerotier -n YOUR_ZEROTIER_NETWORK_ID"
+    exit 1
+  fi
+
+  ensure_zerotier_service
+  show_zerotier_node
+  join_zerotier_network
 }
 
 run_script() {
@@ -121,7 +188,7 @@ lock_bootstrap_user() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --from)
+    --from|-f)
       START_STEP="${2:-}"
       if [[ -z "$START_STEP" ]]; then
         echo "--from requires a step name."
@@ -130,15 +197,15 @@ while [[ $# -gt 0 ]]; do
       step_number "$START_STEP" >/dev/null
       shift 2
       ;;
-    --zerotier-network-id)
+    -n|--zerotier-network-id)
       ZT_NETWORK_ID="${2:-}"
       if [[ -z "$ZT_NETWORK_ID" ]]; then
-        echo "--zerotier-network-id requires a value."
+        echo "$1 requires a value."
         exit 1
       fi
       shift 2
       ;;
-    --admin-user)
+    --admin-user|-au)
       ADMIN_USER="${2:-}"
       if [[ -z "$ADMIN_USER" ]]; then
         echo "--admin-user requires a value."
@@ -146,28 +213,24 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
-    --skip-admin-user|--no-admin-user)
+    --skip-admin-user|--no-admin-user|-sau)
       CREATE_ADMIN_USER=false
       shift
       ;;
-    --lock-bootstrap-user|--lock-permissions-on-success)
+    --lock-bootstrap-user|--lock-permissions-on-success|-lbu)
       LOCK_BOOTSTRAP_USER_ON_SUCCESS=true
       shift
       ;;
-    --skip-docker|--no-docker)
+    --skip-docker|--no-docker|-sd)
       INSTALL_DOCKER=false
       shift
       ;;
-    --skip-openclaw|--no-openclaw)
+    --skip-openclaw|--no-openclaw|-soc)
       INSTALL_OPENCLAW=false
       shift
       ;;
-    --skip-proxy|--no-proxy)
+    --skip-proxy|--no-proxy|-sp)
       EXPOSE_OPENCLAW_ZT=false
-      shift
-      ;;
-    --with-docker)
-      INSTALL_DOCKER=true
       shift
       ;;
     -h|--help)
@@ -192,6 +255,10 @@ export LOCK_BOOTSTRAP_USER_ON_SUCCESS
 
 echo "== Bootstrap start =="
 echo "Starting from step: $START_STEP"
+
+if [[ "$(step_number "$START_STEP")" -lt "$(step_number docker)" ]]; then
+  require_zerotier_network_id
+fi
 
 if should_run base; then
   echo "== Updating system =="
@@ -227,15 +294,8 @@ if should_run admin-user; then
 fi
 
 if should_run zerotier; then
-  echo "== Installing ZeroTier =="
-  if command -v zerotier-cli >/dev/null 2>&1; then
-    echo "ZeroTier already installed"
-  else
-    curl -s https://install.zerotier.com | bash
-  fi
-
-  echo "== Enabling ZeroTier service =="
-  systemctl enable --now zerotier-one
+  ensure_zerotier_installed
+  ensure_zerotier_service
 
   if systemctl list-unit-files fail2ban.service >/dev/null 2>&1; then
     systemctl enable --now fail2ban
@@ -243,23 +303,11 @@ if should_run zerotier; then
     echo "fail2ban service not found; skipping service enable."
   fi
 
-  until zerotier-cli info >/dev/null 2>&1; do
-    echo "Waiting for ZeroTier service..."
-    sleep 1
-  done
-
-  echo "ZeroTier node ID:"
-  zerotier-cli info
-
-  require_zerotier_network_id
-
-  if zerotier-cli listnetworks 2>/dev/null | awk '{ print $3 }' | grep -qi "^${ZT_NETWORK_ID}$"; then
-    echo "Already joined ZeroTier network: $ZT_NETWORK_ID"
-  else
-    echo "Joining ZeroTier network: $ZT_NETWORK_ID"
-    zerotier-cli join "$ZT_NETWORK_ID"
-  fi
+  show_zerotier_node
+  join_zerotier_network
 fi
+
+ensure_zerotier_connected_for_resume
 
 if should_run docker; then
   if $INSTALL_DOCKER; then
