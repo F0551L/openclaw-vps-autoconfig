@@ -194,10 +194,10 @@ Future option:
 
 ## Future Work
 
-* Docker Compose–based OpenClaw deployment
-* ZeroTier-only service exposure model
+* Restrict SSH access to ZeroTier after initial provisioning
+* Non-interactive bootstrap flags for fully automated rebuilds
 * Automated rebuild workflow
-* Optional SSH hardening improvements
+* Optional SSH hardening script
 
 ---
 
