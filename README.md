@@ -193,6 +193,12 @@ This separation allows:
 * easier rebuilds and experimentation
 
 OpenClaw is installed using its official Docker-based setup script, which manages its own containers and configuration.
+By default, `scripts/install-openclaw.sh` checks out GitHub's latest OpenClaw release tag instead of repository HEAD. To pin or test a different ref:
+
+```bash
+sudo OPENCLAW_REF=v2026.4.15 bash scripts/install-openclaw.sh
+sudo OPENCLAW_REF=main bash scripts/install-openclaw.sh
+```
 
 ### Stage 3 — ZeroTier-only OpenClaw access
 
