@@ -118,7 +118,9 @@ OpenClaw is installed using its official Docker-based setup script, which manage
 
 Handled by `scripts/expose-openclaw-zerotier.sh`:
 
+* Prints the ZeroTier node ID and joined network IDs
 * Detects the VPS ZeroTier IPv4 address
+* Prompts for retry if no ZeroTier address is available yet
 * Generates a Caddy reverse proxy config
 * Runs Caddy as a Docker container with host networking
 * Binds the proxy to the ZeroTier address only
@@ -141,6 +143,7 @@ Optional overrides:
 ```bash
 sudo PROXY_PORT=8080 bash scripts/expose-openclaw-zerotier.sh
 sudo OPENCLAW_UPSTREAM=127.0.0.1:18789 PROXY_PORT=8080 bash scripts/expose-openclaw-zerotier.sh
+sudo ZT_DETECT_RETRIES=5 bash scripts/expose-openclaw-zerotier.sh
 ```
 
 ---
