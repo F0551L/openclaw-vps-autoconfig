@@ -18,6 +18,8 @@ When creating changes:
 * Assign the user as a reviewer.
 * Use stacked PRs when changes depend on earlier branches.
 * Push follow-up commits to the same PR branch when updating review feedback or continuing that change.
+* Ensure `.github/CODEOWNERS` exists before opening a pull request. If it is missing, add it in the same logical change when appropriate.
+* Ensure the repository owner is included in `.github/CODEOWNERS` for every path. Infer the owner from the GitHub remote owner when possible; ask the user if the owner cannot be determined.
 
 ### Branch structure
 
