@@ -35,7 +35,7 @@ if ! command -v openssl >/dev/null 2>&1; then
 fi
 
 if ! command -v zerotier-cli >/dev/null 2>&1; then
-  echo "ZeroTier is not installed. Run bootstrap.sh first."
+  echo "ZeroTier is not installed. Run clawtier.sh first."
   exit 1
 fi
 
@@ -245,7 +245,7 @@ if [[ -z "$ZT_IP" || -z "$ZT_IFACE" ]]; then
     if ! is_true "$WAIT_ZT_ADDRESS"; then
       echo "Skipping proxy setup because WAIT_ZT_ADDRESS is false."
       echo "Rerun after the node has a ZeroTier address:"
-      echo "  sudo bash bootstrap.sh -f p -sad"
+      echo "  sudo bash clawtier.sh -f p -sad"
       exit 0
     fi
 

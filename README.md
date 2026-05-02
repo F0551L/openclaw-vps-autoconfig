@@ -12,25 +12,25 @@ From a fresh Ubuntu VPS:
 sudo apt update && sudo apt install -y git
 git clone https://github.com/F0551L/ClawTier.git
 cd ClawTier
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
 ```
 
 If ZeroTier Central has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
 
 ```bash
-sudo bash bootstrap.sh -f p -sad
+sudo bash clawtier.sh -f p -sad
 ```
 
 To answer the OpenClaw onboarding prompts yourself instead of using opinionated local defaults, omit `-ocd`:
 
 ```bash
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
 ```
 
 During the proxy step, the script prints a tokenized Control UI URL. Open that URL from the browser/profile you want to use, trust the printed self-signed certificate if needed, then approve the pending browser device:
 
 ```bash
-sudo bash bootstrap.sh -f ad
+sudo bash clawtier.sh -f ad
 ```
 
 The `ad` step can be rerun any time a new browser/profile needs approval.
@@ -38,9 +38,9 @@ The `ad` step can be rerun any time a new browser/profile needs approval.
 For unattended bootstrap runs that should not wait for ZeroTier address assignment, skip the proxy and approval handoffs until later:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
-sudo bash bootstrap.sh -f p -sad
-sudo bash bootstrap.sh -f ad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
+sudo bash clawtier.sh -f p -sad
+sudo bash clawtier.sh -f ad
 ```
 
 ---
@@ -91,7 +91,7 @@ ssh user@YOUR_IP
 sudo apt update && sudo apt install -y git
 git clone https://github.com/F0551L/ClawTier.git
 cd ClawTier
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
 During bootstrap you may be prompted for:
@@ -103,13 +103,13 @@ Bootstrap creates a sudo-capable `ocadmin` user by default. Docker, OpenClaw, an
 To pull the latest bootstrap scripts from Git before continuing:
 
 ```bash
-sudo bash bootstrap.sh -u -n YOUR_ZEROTIER_NETWORK_ID
+sudo bash clawtier.sh -u -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
 To update the scripts and stop before running any setup:
 
 ```bash
-sudo bash bootstrap.sh -uso
+sudo bash clawtier.sh -uso
 ```
 
 ---
@@ -117,7 +117,7 @@ sudo bash bootstrap.sh -uso
 ### 4. Optional: run non-interactively
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 ```
 
 `--zerotier-network-id` is also accepted as a longer alias for `-n`.
@@ -127,7 +127,7 @@ sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 `-sad` skips the interactive Control UI device approval step. Run it later after opening the printed tokenized URL in the browser/profile you want to approve:
 
 ```bash
-sudo bash bootstrap.sh -f ad
+sudo bash clawtier.sh -f ad
 ```
 
 `-y, --non-interactive` disables prompts. Missing required values fail fast, and the device approval step prints the setup URL without polling.
@@ -137,7 +137,7 @@ To keep repeat rebuild inputs in one place, use a root-owned env file:
 ```bash
 sudo install -m 600 -o root -g root /dev/null /root/clawtier-bootstrap.env
 sudo nano /root/clawtier-bootstrap.env
-sudo bash bootstrap.sh --env-file /root/clawtier-bootstrap.env -y -ocd -sad
+sudo bash clawtier.sh --env-file /root/clawtier-bootstrap.env -y -ocd -sad
 ```
 
 Example env file:
@@ -152,31 +152,31 @@ GATEWAY_TOKEN=optional-existing-token
 To keep going without waiting for ZeroTier Central address assignment:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
 ```
 
 To wait longer for address assignment:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --zt-address-timeout 300 --zt-detect-interval 15 -sad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --zt-address-timeout 300 --zt-detect-interval 15 -sad
 ```
 
 For forks or custom script sources, override the update source:
 
 ```bash
-sudo bash bootstrap.sh -u -s https://github.com/YOUR_USERNAME/ClawTier.git -n YOUR_ZEROTIER_NETWORK_ID
+sudo bash clawtier.sh -u -s https://github.com/YOUR_USERNAME/ClawTier.git -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
 To install an SSH public key for the admin user during bootstrap:
 
 ```bash
-sudo env ADMIN_SSH_PUBLIC_KEY_FILE=/root/.ssh/authorized_keys bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID
+sudo env ADMIN_SSH_PUBLIC_KEY_FILE=/root/.ssh/authorized_keys bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
 By default, password login for the admin user remains locked. To set an initial password, prefer a hidden prompt:
 
 ```bash
-sudo env ADMIN_PASSWORD_PROMPT=true bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID
+sudo env ADMIN_PASSWORD_PROMPT=true bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
 For non-interactive rebuilds, use a root-only password file instead of putting the password directly in a command:
@@ -184,20 +184,20 @@ For non-interactive rebuilds, use a root-only password file instead of putting t
 ```bash
 sudo install -m 600 /dev/null /root/ocadmin.password
 sudo nano /root/ocadmin.password
-sudo env ADMIN_PASSWORD_FILE=/root/ocadmin.password bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
+sudo env ADMIN_PASSWORD_FILE=/root/ocadmin.password bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
 ```
 
 ---
 
 ### 5. Resume from a specific step
 
-If a run is interrupted, call `bootstrap.sh` again with `-f, --from`:
+If a run is interrupted, call `clawtier.sh` again with `-f, --from`:
 
 ```bash
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -f d
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -f oc
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -f p
-sudo bash bootstrap.sh -f ad
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -f d
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -f oc
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -f p
+sudo bash clawtier.sh -f ad
 ```
 
 When resuming from `docker` or `openclaw`, bootstrap checks whether ZeroTier is connected. If no connected ZeroTier network is found, it asks for `-n` interactively and tries to join before continuing.
@@ -216,26 +216,26 @@ Available steps:
 Useful skip flags:
 
 ```bash
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sau
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sd
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -soc
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sp
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -sau
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -sd
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -soc
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -sp
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
 ```
 
 Useful non-interactive examples:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ud
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ud
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
+sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
 ```
 
 To lock the original sudo/bootstrap user after the `ocadmin` account is created successfully:
 
 ```bash
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -lbu
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -lbu
 ```
 
 ---
@@ -256,7 +256,7 @@ sudo reboot
 │   └── CODEOWNERS            # Repository-wide ownership rules
 ├── .gitignore
 ├── AGENTS.md                 # Agent workflow instructions
-├── bootstrap.sh              # Base system setup (packages, firewall, ZeroTier)
+├── clawtier.sh              # Base system setup (packages, firewall, ZeroTier)
 ├── scripts/
 │   ├── create-admin-user.sh  # Sudo admin user creation
 │   ├── install-docker.sh     # Docker installation
@@ -272,7 +272,7 @@ sudo reboot
 
 ### Stage 1 — Bootstrap
 
-Handled by `bootstrap.sh`:
+Handled by `clawtier.sh`:
 
 * System update/upgrade
 * Base package install (`curl`, `git`, `ufw`, `fail2ban`, `openssl`, `jq`)

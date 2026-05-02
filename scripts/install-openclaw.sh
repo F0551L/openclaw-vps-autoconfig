@@ -16,7 +16,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
-  echo "curl is not installed. Run bootstrap.sh first."
+  echo "curl is not installed. Run clawtier.sh first."
   exit 1
 fi
 
