@@ -10,6 +10,14 @@ Always follow this workflow when making changes unless explicitly told otherwise
 
 Use stacked branches for non-trivial work.
 
+When creating changes:
+
+* Always push to a new branch unless the user explicitly asks for a direct `main` commit.
+* Open a pull request for the branch.
+* Assign the user as a reviewer.
+* Use stacked PRs when changes depend on earlier branches.
+* Push follow-up commits to the same PR branch when updating review feedback or continuing that change.
+
 ### Branch structure
 
 * Do not put unrelated work into one branch.
