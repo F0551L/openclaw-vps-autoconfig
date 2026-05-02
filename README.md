@@ -252,6 +252,10 @@ sudo reboot
 
 ```
 .
+├── .github/
+│   └── CODEOWNERS            # Repository-wide ownership rules
+├── .gitignore
+├── AGENTS.md                 # Agent workflow instructions
 ├── bootstrap.sh              # Base system setup (packages, firewall, ZeroTier)
 ├── scripts/
 │   ├── create-admin-user.sh  # Sudo admin user creation
@@ -322,37 +326,6 @@ By default, OpenClaw remains on the host loopback address at `127.0.0.1:18789`, 
 https://ZEROTIER_IP/
 ```
 
----
-
-## Security Hardening Notes
-
-This bootstrap is designed to reduce exposed attack surface for a disposable VPS pattern.
-
-### Network controls
-
-* `ufw` is enabled during bootstrap.
-* SSH (`22/tcp`) and ZeroTier (`9993/udp`) are allowed.
-* OpenClaw is kept on loopback (`127.0.0.1:18789`) and not exposed directly on the public interface.
-* The Caddy reverse proxy binds to the ZeroTier interface/IP so Control UI access is limited to ZeroTier peers.
-
-### Access controls
-
-* A dedicated sudo admin account (`ocadmin` by default) is created.
-* Optional `-lbu` / `--lock-bootstrap-user` locks the original bootstrap sudo user's password after successful admin-user setup.
-* Device approval is explicit (`-sad` lets you postpone approval until you are ready).
-
-### Service hardening
-
-* `fail2ban` is installed and enabled when available.
-* `unattended-upgrades` is installed as part of baseline packages.
-* OpenClaw auth and remote token values are synchronized by the proxy setup script.
-
-### Operational guidance
-
-* Prefer SSH keys over passwords for admin access.
-* If you must set a password non-interactively, use a root-only file (`ADMIN_PASSWORD_FILE`) and avoid inline secrets in shell history.
-* Rebuild frequently from automation rather than mutating long-lived servers manually.
-
 The script prints the generated gateway token, a tokenized Control UI URL, and the device approval command at the end. Because the default HTTPS certificate is self-signed, install and trust the printed `.crt` file on any client device that will use the Control UI.
 
 Run manually after OpenClaw is installed:
@@ -396,6 +369,37 @@ sudo OPENCLAW_URL=https://ZEROTIER_IP/ bash scripts/approve-openclaw-device.sh
 sudo APPROVAL_POLL_SECONDS=300 bash scripts/approve-openclaw-device.sh
 sudo GATEWAY_TOKEN=existing-token bash scripts/approve-openclaw-device.sh
 ```
+
+---
+
+## Security Hardening Notes
+
+This bootstrap is designed to reduce exposed attack surface for a disposable VPS pattern.
+
+### Network controls
+
+* `ufw` is enabled during bootstrap.
+* SSH (`22/tcp`) and ZeroTier (`9993/udp`) are allowed.
+* OpenClaw is kept on loopback (`127.0.0.1:18789`) and not exposed directly on the public interface.
+* The Caddy reverse proxy binds to the ZeroTier interface/IP so Control UI access is limited to ZeroTier peers.
+
+### Access controls
+
+* A dedicated sudo admin account (`ocadmin` by default) is created.
+* Optional `-lbu` / `--lock-bootstrap-user` locks the original bootstrap sudo user's password after successful admin-user setup.
+* Device approval is explicit (`-sad` lets you postpone approval until you are ready).
+
+### Service hardening
+
+* `fail2ban` is installed and enabled when available.
+* `unattended-upgrades` is installed as part of baseline packages.
+* OpenClaw auth and remote token values are synchronized by the proxy setup script.
+
+### Operational guidance
+
+* Prefer SSH keys over passwords for admin access.
+* If you must set a password non-interactively, use a root-only file (`ADMIN_PASSWORD_FILE`) and avoid inline secrets in shell history.
+* Rebuild frequently from automation rather than mutating long-lived servers manually.
 
 ---
 
