@@ -394,8 +394,9 @@ Future option:
 
 ## Contributing
 
-* Prefer **Rebase and merge** for PRs
-* Squash is fine for small fixes
+* Prefer **Squash and merge** for PRs
+* Use stacked PRs to merge implementation branches back into their feature branch
+* Merge the completed feature branch into `main`
 * Avoid merge commits
 
 ---
