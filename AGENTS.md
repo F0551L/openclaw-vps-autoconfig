@@ -12,7 +12,8 @@ Use stacked branches for non-trivial work.
 
 When creating changes:
 
-* Always push to a new branch unless the user explicitly asks for a direct `main` commit.
+* Always push to a new branch.
+* Immediately push new workflow branches to the remote as soon as they are created, before committing anything, so other agent instances can fetch the branch and rebase from it if instructed.
 * Open a pull request for the branch.
 * Assign the user as a reviewer.
 * Use stacked PRs when changes depend on earlier branches.
