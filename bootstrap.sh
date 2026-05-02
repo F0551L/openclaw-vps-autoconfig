@@ -11,11 +11,16 @@ ADMIN_USER="${ADMIN_USER:-ocadmin}"
 LOCK_BOOTSTRAP_USER_ON_SUCCESS=false
 ADMIN_USER_READY=false
 ZT_NETWORK_ID="${ZT_NETWORK_ID:-}"
+NONINTERACTIVE="${NONINTERACTIVE:-false}"
+WAIT_ZT_ADDRESS="${WAIT_ZT_ADDRESS:-true}"
+ZT_ADDRESS_TIMEOUT="${ZT_ADDRESS_TIMEOUT:-}"
+ZT_DETECT_INTERVAL="${ZT_DETECT_INTERVAL:-10}"
 DEFAULT_UPDATE_SOURCE="https://github.com/F0551L/openclaw-vps-autoconfig.git"
 UPDATE_SCRIPTS=false
 UPDATE_SCRIPTS_ONLY=false
 UPDATE_SOURCE="${UPDATE_SOURCE:-}"
 UPDATE_REF="${UPDATE_REF:-}"
+ENV_FILE="${ENV_FILE:-}"
 PASSTHROUGH_ARGS=()
 
 usage() {
@@ -30,6 +35,14 @@ Options:
   -s, -source, --update-source URL
                               Override Git source for script updates.
   -r, -ref, --update-ref REF  Override Git ref for script updates. Default: current branch.
+  --env-file FILE             Load bootstrap environment values from FILE.
+  -y, --non-interactive       Never prompt; fail or skip when input is missing.
+  --wait-zt-address           Wait for ZeroTier address assignment before proxy setup. Default.
+  --no-wait-zt-address        Skip proxy setup if no ZeroTier address is assigned yet.
+  --zt-address-timeout SECONDS
+                              Maximum time to wait for ZeroTier address assignment.
+  --zt-detect-interval SECONDS
+                              Seconds between ZeroTier address detection attempts. Default: 10.
   -f, --from STEP             Start from STEP and continue onward.
                               Steps: b/base, au/admin-user, zt/zerotier, d/docker,
                                      oc/openclaw, p/proxy, ad/approve-device,
@@ -45,6 +58,11 @@ Options:
 
 Environment:
   ZT_NETWORK_ID               ZeroTier network ID to join.
+  NONINTERACTIVE              Set true to disable prompts.
+  WAIT_ZT_ADDRESS             Set false to skip proxy setup when no ZeroTier address is assigned.
+  ZT_ADDRESS_TIMEOUT          Maximum time to wait for ZeroTier address assignment.
+  ZT_DETECT_INTERVAL          Seconds between ZeroTier address detection attempts.
+  ENV_FILE                    Environment file to load before setup.
   UPDATE_SOURCE               Git URL/path to fetch when updating scripts.
   UPDATE_REF                  Git ref to fetch when updating scripts.
   ADMIN_USER                  Admin sudo user to create.
@@ -57,7 +75,7 @@ Environment:
 
 Examples:
   sudo bash bootstrap.sh -u -n 0123456789abcdef
-  sudo bash bootstrap.sh -n 0123456789abcdef
+  sudo bash bootstrap.sh -y -n 0123456789abcdef -sad
   sudo bash bootstrap.sh -n 0123456789abcdef -au openclaw
   sudo bash bootstrap.sh -n 0123456789abcdef -f d
   sudo bash bootstrap.sh -n 0123456789abcdef -f p
@@ -88,9 +106,46 @@ should_run() {
   [[ "$(step_number "$step")" -ge "$(step_number "$START_STEP")" ]]
 }
 
+is_true() {
+  [[ "${1:-}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
+}
+
+load_env_file() {
+  local env_file="$1"
+  local perms
+
+  if [[ -z "$env_file" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$env_file" ]]; then
+    echo "Environment file not found: $env_file"
+    exit 1
+  fi
+
+  if [[ "$(stat -c "%u" "$env_file")" != "0" ]]; then
+    echo "Environment file must be owned by root: $env_file"
+    exit 1
+  fi
+
+  perms="$(stat -c "%A" "$env_file")"
+  if [[ "${perms:5:1}" == "w" || "${perms:8:1}" == "w" ]]; then
+    echo "Environment file must not be writable by group or other users: $env_file"
+    echo "Run: sudo chmod 600 $env_file"
+    exit 1
+  fi
+
+  echo "== Loading environment file =="
+  echo "Env file: $env_file"
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  set +a
+}
+
 require_zerotier_network_id() {
   while [[ -z "$ZT_NETWORK_ID" ]]; do
-    if [[ ! -t 0 ]]; then
+    if is_true "$NONINTERACTIVE" || [[ ! -t 0 ]]; then
       echo "ZeroTier network ID is required. Pass it with -n ID."
       exit 1
     fi
@@ -129,6 +184,24 @@ show_zerotier_node() {
   zerotier-cli info
 }
 
+show_zerotier_networks() {
+  local networks network_summary
+
+  networks="$(zerotier-cli listnetworks 2>/dev/null || true)"
+  if [[ -z "$networks" ]]; then
+    echo "No joined ZeroTier networks found."
+    return 0
+  fi
+
+  echo "Joined ZeroTier networks:"
+  network_summary="$(awk '/^200 listnetworks/ { printf "  Network ID: %s", $3; if ($4 != "") printf "  Name: %s", $4; if ($6 != "") printf "  Status: %s", $6; if ($8 != "") printf "  Interface: %s", $8; if ($9 != "") printf "  Addresses: %s", $9; print "" }' <<<"$networks")"
+  if [[ -n "$network_summary" ]]; then
+    echo "$network_summary"
+  else
+    echo "$networks"
+  fi
+}
+
 zerotier_has_connected_network() {
   command -v zerotier-cli >/dev/null 2>&1 || return 1
   zerotier-cli listnetworks 2>/dev/null | awk '/^200 listnetworks/ && $6 == "OK" { found = 1 } END { exit found ? 0 : 1 }'
@@ -165,6 +238,7 @@ ensure_zerotier_connected_for_resume() {
 
   ensure_zerotier_service
   show_zerotier_node
+  show_zerotier_networks
   join_zerotier_network
 }
 
@@ -315,6 +389,48 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
+    --env-file)
+      ENV_FILE="${2:-}"
+      if [[ -z "$ENV_FILE" ]]; then
+        echo "--env-file requires a value."
+        exit 1
+      fi
+      PASSTHROUGH_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    -y|--non-interactive|--yes)
+      NONINTERACTIVE=true
+      PASSTHROUGH_ARGS+=("$1")
+      shift
+      ;;
+    --wait-zt-address)
+      WAIT_ZT_ADDRESS=true
+      PASSTHROUGH_ARGS+=("$1")
+      shift
+      ;;
+    --no-wait-zt-address)
+      WAIT_ZT_ADDRESS=false
+      PASSTHROUGH_ARGS+=("$1")
+      shift
+      ;;
+    --zt-address-timeout)
+      ZT_ADDRESS_TIMEOUT="${2:-}"
+      if [[ -z "$ZT_ADDRESS_TIMEOUT" ]]; then
+        echo "--zt-address-timeout requires a value."
+        exit 1
+      fi
+      PASSTHROUGH_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    --zt-detect-interval)
+      ZT_DETECT_INTERVAL="${2:-}"
+      if [[ -z "$ZT_DETECT_INTERVAL" ]]; then
+        echo "--zt-detect-interval requires a value."
+        exit 1
+      fi
+      PASSTHROUGH_ARGS+=("$1" "$2")
+      shift 2
+      ;;
     --admin-user|-au)
       ADMIN_USER="${2:-}"
       if [[ -z "$ADMIN_USER" ]]; then
@@ -373,6 +489,16 @@ fi
 
 export ADMIN_USER
 export LOCK_BOOTSTRAP_USER_ON_SUCCESS
+export NONINTERACTIVE
+export WAIT_ZT_ADDRESS
+export ZT_ADDRESS_TIMEOUT
+export ZT_DETECT_INTERVAL
+
+if [[ -z "$ENV_FILE" && -n "${BOOTSTRAP_ENV_FILE:-}" ]]; then
+  ENV_FILE="$BOOTSTRAP_ENV_FILE"
+fi
+
+load_env_file "$ENV_FILE"
 
 if $UPDATE_SCRIPTS; then
   update_scripts
@@ -432,6 +558,7 @@ if should_run zerotier; then
 
   show_zerotier_node
   join_zerotier_network
+  show_zerotier_networks
 fi
 
 ensure_zerotier_connected_for_resume

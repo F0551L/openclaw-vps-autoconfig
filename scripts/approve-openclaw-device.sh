@@ -8,6 +8,7 @@ GATEWAY_TOKEN="${GATEWAY_TOKEN:-}"
 ZT_IP="${ZT_IP:-}"
 APPROVAL_POLL_SECONDS="${APPROVAL_POLL_SECONDS:-180}"
 APPROVAL_POLL_INTERVAL="${APPROVAL_POLL_INTERVAL:-3}"
+NONINTERACTIVE="${NONINTERACTIVE:-false}"
 
 if [[ $EUID -ne 0 ]]; then
   echo "Please run as root, e.g. sudo bash scripts/approve-openclaw-device.sh"
@@ -39,6 +40,10 @@ if [[ ! "$APPROVAL_POLL_INTERVAL" =~ ^[0-9]+$ || "$APPROVAL_POLL_INTERVAL" -lt 1
   echo "Invalid APPROVAL_POLL_INTERVAL: $APPROVAL_POLL_INTERVAL"
   exit 1
 fi
+
+is_true() {
+  [[ "${1:-}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
+}
 
 find_zerotier_address() {
   local iface_path iface ip_addr
@@ -121,8 +126,8 @@ echo "Open this URL on the client/browser you want to approve:"
 echo "  ${OPENCLAW_URL}#token=${GATEWAY_TOKEN}"
 echo ""
 
-if [[ ! -t 0 ]]; then
-  echo "No interactive terminal is available; skipping device approval polling."
+if is_true "$NONINTERACTIVE" || [[ ! -t 0 ]]; then
+  echo "No interactive approval requested; skipping device approval polling."
   echo "Rerun this step when you can open the URL and respond to the prompt:"
   echo "  sudo bash scripts/approve-openclaw-device.sh"
   exit 0

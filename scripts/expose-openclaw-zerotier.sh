@@ -11,7 +11,11 @@ HTTPS_PROXY_PORT="${HTTPS_PROXY_PORT:-443}"
 ZT_IP="${ZT_IP:-}"
 ZT_IFACE="${ZT_IFACE:-}"
 ZT_DETECT_RETRIES="${ZT_DETECT_RETRIES:-3}"
+ZT_DETECT_INTERVAL="${ZT_DETECT_INTERVAL:-10}"
+WAIT_ZT_ADDRESS="${WAIT_ZT_ADDRESS:-true}"
+ZT_ADDRESS_TIMEOUT="${ZT_ADDRESS_TIMEOUT:-}"
 GATEWAY_TOKEN="${GATEWAY_TOKEN:-}"
+NONINTERACTIVE="${NONINTERACTIVE:-false}"
 attempt=1
 
 if [[ $EUID -ne 0 ]]; then
@@ -44,6 +48,20 @@ if [[ ! "$ZT_DETECT_RETRIES" =~ ^[0-9]+$ || "$ZT_DETECT_RETRIES" -lt 1 ]]; then
   echo "Invalid ZT_DETECT_RETRIES: $ZT_DETECT_RETRIES"
   exit 1
 fi
+
+if [[ ! "$ZT_DETECT_INTERVAL" =~ ^[0-9]+$ || "$ZT_DETECT_INTERVAL" -lt 1 ]]; then
+  echo "Invalid ZT_DETECT_INTERVAL: $ZT_DETECT_INTERVAL"
+  exit 1
+fi
+
+if [[ -n "$ZT_ADDRESS_TIMEOUT" && ! "$ZT_ADDRESS_TIMEOUT" =~ ^[0-9]+$ ]]; then
+  echo "Invalid ZT_ADDRESS_TIMEOUT: $ZT_ADDRESS_TIMEOUT"
+  exit 1
+fi
+
+is_true() {
+  [[ "${1:-}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
+}
 
 show_zerotier_status() {
   local info networks node_id network_summary
@@ -86,6 +104,23 @@ find_zerotier_address() {
     if [[ -n "$ip_addr" ]]; then
       ZT_IFACE="$iface"
       ZT_IP="$ip_addr"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+find_zerotier_interface_for_ip() {
+  local iface_path iface ip_addr
+
+  shopt -s nullglob
+  for iface_path in /sys/class/net/zt*; do
+    iface="$(basename "$iface_path")"
+    ip_addr="$(ip -4 -o addr show dev "$iface" scope global 2>/dev/null | awk '{ split($4, a, "/"); print a[1]; exit }')"
+
+    if [[ "$ip_addr" == "$ZT_IP" ]]; then
+      ZT_IFACE="$iface"
       return 0
     fi
   done
@@ -189,8 +224,17 @@ generate_self_signed_cert() {
 
 show_zerotier_status
 
+if [[ -n "$ZT_IP" && -z "$ZT_IFACE" ]]; then
+  find_zerotier_interface_for_ip || true
+fi
+
 if [[ -z "$ZT_IP" || -z "$ZT_IFACE" ]]; then
   attempt=1
+  if [[ -n "$ZT_ADDRESS_TIMEOUT" ]]; then
+    zt_address_deadline=$((SECONDS + ZT_ADDRESS_TIMEOUT))
+  else
+    zt_address_deadline=0
+  fi
 
   echo "== Detecting ZeroTier address =="
   until find_zerotier_address; do
@@ -198,16 +242,34 @@ if [[ -z "$ZT_IP" || -z "$ZT_IFACE" ]]; then
     echo "No ZeroTier IPv4 address found."
     echo "If the node was just joined, authorize it in ZeroTier Central and wait for an address assignment."
 
-    if [[ "$attempt" -ge "$ZT_DETECT_RETRIES" ]]; then
+    if ! is_true "$WAIT_ZT_ADDRESS"; then
+      echo "Skipping proxy setup because WAIT_ZT_ADDRESS is false."
+      echo "Rerun after the node has a ZeroTier address:"
+      echo "  sudo bash bootstrap.sh -f p -sad"
+      exit 0
+    fi
+
+    if [[ "$zt_address_deadline" -gt 0 && "$SECONDS" -ge "$zt_address_deadline" ]]; then
+      echo "Giving up after ${ZT_ADDRESS_TIMEOUT}s waiting for a ZeroTier address."
+      echo "Rerun this script after the node has a ZeroTier address."
+      exit 1
+    fi
+
+    if [[ "$zt_address_deadline" -eq 0 && "$attempt" -ge "$ZT_DETECT_RETRIES" ]]; then
       echo "Giving up after ${ZT_DETECT_RETRIES} attempts."
       echo "Rerun this script after the node has a ZeroTier address."
       exit 1
     fi
 
-    read -rp "Press Enter to retry ZeroTier address detection, or type q to quit: " RETRY_ZT_DETECT
-    if [[ "$RETRY_ZT_DETECT" =~ ^[Qq]$ ]]; then
-      echo "Stopped before configuring the proxy."
-      exit 1
+    if is_true "$NONINTERACTIVE" || [[ ! -t 0 ]]; then
+      echo "Retrying ZeroTier address detection in ${ZT_DETECT_INTERVAL}s..."
+      sleep "$ZT_DETECT_INTERVAL"
+    else
+      read -rp "Press Enter to retry ZeroTier address detection, or type q to quit: " RETRY_ZT_DETECT
+      if [[ "$RETRY_ZT_DETECT" =~ ^[Qq]$ ]]; then
+        echo "Stopped before configuring the proxy."
+        exit 1
+      fi
     fi
 
     attempt=$((attempt + 1))

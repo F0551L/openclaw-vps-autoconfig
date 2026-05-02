@@ -12,7 +12,13 @@ From a fresh Ubuntu VPS:
 sudo apt update && sudo apt install -y git
 git clone https://github.com/F0551L/openclaw-vps-autoconfig.git
 cd openclaw-vps-autoconfig
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -sad
+```
+
+If ZeroTier Central has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
+
+```bash
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -f p -sad
 ```
 
 During the proxy step, the script prints a tokenized Control UI URL. Open that URL from the browser/profile you want to use, trust the printed self-signed certificate if needed, then approve the pending browser device:
@@ -23,10 +29,11 @@ sudo bash bootstrap.sh -f ad
 
 The `ad` step can be rerun any time a new browser/profile needs approval.
 
-For unattended bootstrap runs, skip the interactive approval step and run it later:
+For unattended bootstrap runs that should not wait for ZeroTier address assignment, skip the proxy and approval handoffs until later:
 
 ```bash
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID --no-wait-zt-address -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -f p -sad
 sudo bash bootstrap.sh -f ad
 ```
 
@@ -97,7 +104,7 @@ sudo bash bootstrap.sh -uso
 ### 4. Optional: run non-interactively
 
 ```bash
-sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -sad
 ```
 
 `--zerotier-network-id` is also accepted as a longer alias for `-n`.
@@ -106,6 +113,37 @@ sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -sad
 
 ```bash
 sudo bash bootstrap.sh -f ad
+```
+
+`-y, --non-interactive` disables prompts. Missing required values fail fast, and the device approval step prints the setup URL without polling.
+
+To keep repeat rebuild inputs in one place, use a root-owned env file:
+
+```bash
+sudo install -m 600 -o root -g root /dev/null /root/openclaw-bootstrap.env
+sudo nano /root/openclaw-bootstrap.env
+sudo bash bootstrap.sh --env-file /root/openclaw-bootstrap.env -y -sad
+```
+
+Example env file:
+
+```bash
+ZT_NETWORK_ID=YOUR_ZEROTIER_NETWORK_ID
+ADMIN_USER=ocadmin
+ZT_ADDRESS_TIMEOUT=300
+GATEWAY_TOKEN=optional-existing-token
+```
+
+To keep going without waiting for ZeroTier Central address assignment:
+
+```bash
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID --no-wait-zt-address -sad
+```
+
+To wait longer for address assignment:
+
+```bash
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID --zt-address-timeout 300 --zt-detect-interval 15 -sad
 ```
 
 For forks or custom script sources, override the update source:
@@ -244,7 +282,7 @@ Handled by `scripts/expose-openclaw-zerotier.sh`:
 
 * Prints the ZeroTier node ID and joined network IDs
 * Detects the VPS ZeroTier IPv4 address
-* Prompts for retry if no ZeroTier address is available yet
+* Prompts for retry in interactive mode, or polls in noninteractive mode, if no ZeroTier address is available yet
 * Generates a self-signed HTTPS certificate for the ZeroTier IP
 * Generates a Caddy reverse proxy config with HTTP redirected to HTTPS
 * Runs Caddy as a Docker container with host networking
@@ -275,6 +313,9 @@ sudo PROXY_PORT=8080 bash scripts/expose-openclaw-zerotier.sh
 sudo HTTPS_PROXY_PORT=8443 bash scripts/expose-openclaw-zerotier.sh
 sudo OPENCLAW_UPSTREAM=127.0.0.1:18789 PROXY_PORT=8080 bash scripts/expose-openclaw-zerotier.sh
 sudo GATEWAY_TOKEN=existing-or-preferred-token bash scripts/expose-openclaw-zerotier.sh
+sudo WAIT_ZT_ADDRESS=false bash scripts/expose-openclaw-zerotier.sh
+sudo ZT_ADDRESS_TIMEOUT=300 ZT_DETECT_INTERVAL=15 bash scripts/expose-openclaw-zerotier.sh
+sudo ZT_IP=192.168.194.99 bash scripts/expose-openclaw-zerotier.sh
 sudo ZT_DETECT_RETRIES=5 bash scripts/expose-openclaw-zerotier.sh
 ```
 
