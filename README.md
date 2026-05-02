@@ -21,7 +21,7 @@ If ZeroTier Central has not assigned the VPS an address yet, authorize the print
 sudo bash bootstrap.sh -f p -sad
 ```
 
-To answer the OpenClaw setup prompts yourself instead of using its defaults, omit `-ocd`:
+To answer the OpenClaw onboarding prompts yourself instead of using opinionated local defaults, omit `-ocd`:
 
 ```bash
 sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
@@ -122,7 +122,7 @@ sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 
 `--zerotier-network-id` is also accepted as a longer alias for `-n`.
 
-`-ocd` / `-ud` / `--openclaw-defaults` / `--use-defaults` runs the OpenClaw Docker setup script with its defaults so the OpenClaw setup step does not prompt interactively.
+`-ocd` / `-ud` / `--openclaw-defaults` / `--use-defaults` runs OpenClaw Docker setup with opinionated local defaults. It skips the interactive onboarding wizard, lets the Docker setup generate or reuse the gateway token, and leaves provider/account configuration for later.
 
 `-sad` skips the interactive Control UI device approval step. Run it later after opening the printed tokenized URL in the browser/profile you want to approve:
 

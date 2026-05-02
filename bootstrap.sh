@@ -54,7 +54,7 @@ Options:
   -sd, --skip-docker          Skip Docker installation.
   -soc, --skip-openclaw       Skip OpenClaw installation.
   -ocd, -ud, --openclaw-defaults, --use-defaults
-                              Run OpenClaw setup with defaults (non-interactive).
+                              Run OpenClaw setup with opinionated local defaults.
   -sp, --skip-proxy           Skip ZeroTier reverse proxy setup.
   -sad, --skip-approve-device Skip interactive OpenClaw device approval.
   -h, --help                  Show this help.
@@ -78,7 +78,7 @@ Environment:
 
 Examples:
   sudo bash bootstrap.sh -u -n 0123456789abcdef
-  sudo bash bootstrap.sh -y -n 0123456789abcdef -sad
+  sudo bash bootstrap.sh -y -n 0123456789abcdef -ocd -sad
   sudo bash bootstrap.sh -n 0123456789abcdef -au openclaw
   sudo bash bootstrap.sh -n 0123456789abcdef -f d
   sudo bash bootstrap.sh -n 0123456789abcdef -f p

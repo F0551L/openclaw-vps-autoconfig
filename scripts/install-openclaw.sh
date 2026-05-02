@@ -6,6 +6,7 @@ OPENCLAW_REPO="${OPENCLAW_REPO:-https://github.com/openclaw/openclaw.git}"
 OPENCLAW_LATEST_RELEASE_URL="${OPENCLAW_LATEST_RELEASE_URL:-https://github.com/openclaw/openclaw/releases/latest}"
 OPENCLAW_REF="${OPENCLAW_REF:-}"
 OPENCLAW_SETUP_USE_DEFAULTS="${OPENCLAW_SETUP_USE_DEFAULTS:-false}"
+OPENCLAW_SKIP_ONBOARDING="${OPENCLAW_SKIP_ONBOARDING:-}"
 
 echo "== Installing OpenClaw via official Docker setup =="
 
@@ -38,6 +39,34 @@ resolve_openclaw_ref() {
   echo "$latest_ref"
 }
 
+prepare_openclaw_defaults() {
+  local setup_script="scripts/docker/setup.sh"
+  local marker="OPENCLAW_SKIP_ONBOARDING"
+
+  if [[ ! -f "$setup_script" ]]; then
+    echo "OpenClaw Docker setup script not found: $setup_script"
+    exit 1
+  fi
+
+  export OPENCLAW_SKIP_ONBOARDING="${OPENCLAW_SKIP_ONBOARDING:-1}"
+
+  if grep -q "$marker" "$setup_script"; then
+    echo "OpenClaw Docker setup supports OPENCLAW_SKIP_ONBOARDING."
+    return 0
+  fi
+
+  if ! grep -q 'run_prestart_cli onboard --mode local --no-install-daemon' "$setup_script"; then
+    echo "OpenClaw Docker setup does not support non-interactive defaults for this ref."
+    echo "Expected onboarding command was not found in $setup_script."
+    exit 1
+  fi
+
+  echo "Patching OpenClaw Docker setup to honor OPENCLAW_SKIP_ONBOARDING for this ref."
+  sed -i \
+    's/run_prestart_cli onboard --mode local --no-install-daemon/if [[ -n "${OPENCLAW_SKIP_ONBOARDING:-}" ]]; then\n  echo "==> Skipping onboarding (OPENCLAW_SKIP_ONBOARDING is set)"\nelse\n  run_prestart_cli onboard --mode local --no-install-daemon\nfi/' \
+    "$setup_script"
+}
+
 OPENCLAW_RESOLVED_REF="$(resolve_openclaw_ref)"
 
 if [[ ! -d "$OPENCLAW_DIR/.git" ]]; then
@@ -54,7 +83,9 @@ cd "$OPENCLAW_DIR"
 
 echo "== Running OpenClaw Docker setup =="
 if [[ "$OPENCLAW_SETUP_USE_DEFAULTS" == "true" ]]; then
-  ./scripts/docker/setup.sh --defaults
+  echo "Using opinionated OpenClaw defaults: skip interactive onboarding."
+  prepare_openclaw_defaults
+  ./scripts/docker/setup.sh
 else
   ./scripts/docker/setup.sh
 fi
