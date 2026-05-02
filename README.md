@@ -451,6 +451,13 @@ Future option:
 
 ## Future Work
 
+* Multi-network exposure support
+* Smart resumption for partial runs
+* Idempotent bootstrap steps that skip already configured work and avoid overwriting existing config
+* Consolidate container-related calls
+* Distro-aware setup script
+* Optional script self-update when run from a Git repo, balancing safety with the existing opt-in update flag
+* Option to update ZeroTier and OpenClaw versions, if not already covered by existing update flows
 * Restrict SSH access to ZeroTier after initial provisioning
 * Automated rebuild workflow
 * Optional SSH hardening script
