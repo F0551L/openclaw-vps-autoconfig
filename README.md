@@ -12,19 +12,19 @@ From a fresh Ubuntu VPS:
 sudo apt update && sudo apt install -y git
 git clone https://github.com/F0551L/openclaw-vps-autoconfig.git
 cd openclaw-vps-autoconfig
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
 ```
 
 If ZeroTier Central has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -f p -sad
+sudo bash bootstrap.sh -f p -sad
 ```
 
-Fully non-interactive OpenClaw install (except optional device approval at the end):
+To answer the OpenClaw setup prompts yourself instead of using its defaults, omit `-ocd`:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
+sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
 ```
 
 During the proxy step, the script prints a tokenized Control UI URL. Open that URL from the browser/profile you want to use, trust the printed self-signed certificate if needed, then approve the pending browser device:
@@ -39,7 +39,7 @@ For unattended bootstrap runs that should not wait for ZeroTier address assignme
 
 ```bash
 sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -f p -sad
+sudo bash bootstrap.sh -f p -sad
 sudo bash bootstrap.sh -f ad
 ```
 
@@ -137,7 +137,7 @@ To keep repeat rebuild inputs in one place, use a root-owned env file:
 ```bash
 sudo install -m 600 -o root -g root /dev/null /root/openclaw-bootstrap.env
 sudo nano /root/openclaw-bootstrap.env
-sudo bash bootstrap.sh --env-file /root/openclaw-bootstrap.env -y -sad
+sudo bash bootstrap.sh --env-file /root/openclaw-bootstrap.env -y -ocd -sad
 ```
 
 Example env file:
@@ -152,13 +152,13 @@ GATEWAY_TOKEN=optional-existing-token
 To keep going without waiting for ZeroTier Central address assignment:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID --no-wait-zt-address -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
 ```
 
 To wait longer for address assignment:
 
 ```bash
-sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID --zt-address-timeout 300 --zt-detect-interval 15 -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --zt-address-timeout 300 --zt-detect-interval 15 -sad
 ```
 
 For forks or custom script sources, override the update source:
@@ -184,7 +184,7 @@ For non-interactive rebuilds, use a root-only password file instead of putting t
 ```bash
 sudo install -m 600 /dev/null /root/ocadmin.password
 sudo nano /root/ocadmin.password
-sudo env ADMIN_PASSWORD_FILE=/root/ocadmin.password bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID
+sudo env ADMIN_PASSWORD_FILE=/root/ocadmin.password bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
 ```
 
 ---
@@ -216,20 +216,20 @@ Available steps:
 Useful skip flags:
 
 ```bash
-sudo bash bootstrap.sh -sau
-sudo bash bootstrap.sh -sd
-sudo bash bootstrap.sh -soc
-sudo bash bootstrap.sh -sp
-sudo bash bootstrap.sh -sad
+sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sau
+sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sd
+sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -soc
+sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sp
+sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
 ```
 
-Useful non-interactive flags:
+Useful non-interactive examples:
 
 ```bash
-sudo bash bootstrap.sh -ocd
-sudo bash bootstrap.sh -ud
-sudo bash bootstrap.sh -sad
-sudo bash bootstrap.sh -ocd -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ud
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
+sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
 ```
 
 To lock the original sudo/bootstrap user after the `ocadmin` account is created successfully:
