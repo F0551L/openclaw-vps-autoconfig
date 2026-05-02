@@ -12,6 +12,7 @@ Use a feature base branch plus stacked branches for non-trivial work.
 
 When creating changes:
 
+* Fetch remote refs before starting new requested changes, then check the current branch, upstream branch, and relevant PR state so completed or retargeted PRs do not become stale stack bases.
 * Always push to a new branch.
 * Immediately push new workflow branches to the remote as soon as they are created, before committing anything, so other agent instances can fetch the branch and rebase from it if instructed.
 * Open a pull request for the branch.
@@ -26,7 +27,9 @@ When creating changes:
 
 * Do not put unrelated work into one branch.
 * For non-trivial features, create one feature base branch from `main`.
+* Prefix feature base branches with `feature/`.
 * Create stacked implementation branches from the feature base branch, or from the previous stacked branch when the work depends on it.
+* Stacked implementation branches may use the `codex/` prefix.
 * Prefer small, dependent stacked branches over one large branch.
 * Each stacked branch should represent one logical step.
 * Merge stacked branches back into the feature base branch, not directly into `main`.
@@ -36,11 +39,11 @@ Example structure:
 
 ```text
 main
-└── vps-bootstrap-feature
-    ├── zerotier-install
-    │   └── docker-install
-    │       └── openclaw-compose
-    └── docs-update
+└── feature/vps-bootstrap
+    ├── codex/zerotier-install
+    │   └── codex/docker-install
+    │       └── codex/openclaw-compose
+    └── codex/docs-update
 ```
 
 Each branch should be suitable for its own pull request.
@@ -57,11 +60,11 @@ Each branch should be suitable for its own pull request.
 Example:
 
 ```text
-vps-bootstrap-feature -> main
-zerotier-install      -> vps-bootstrap-feature
-docker-install        -> zerotier-install
-openclaw-compose      -> docker-install
-docs-update           -> vps-bootstrap-feature
+feature/vps-bootstrap  -> main
+codex/zerotier-install -> feature/vps-bootstrap
+codex/docker-install   -> codex/zerotier-install
+codex/openclaw-compose -> codex/docker-install
+codex/docs-update      -> feature/vps-bootstrap
 ```
 
 ---
