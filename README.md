@@ -392,6 +392,14 @@ Future option:
 
 ---
 
+## Contributing
+
+* Prefer **Rebase and merge** for PRs
+* Squash is fine for small fixes
+* Avoid merge commits
+
+---
+
 ## Future Work
 
 * Restrict SSH access to ZeroTier after initial provisioning
