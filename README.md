@@ -1,4 +1,4 @@
-# OpenClaw-over-ZeroTier VPS Bootstrap
+# ClawTier
 
 Bootstrap and configuration scripts for a disposable Ubuntu VPS running OpenClaw with private access over ZeroTier.
 
@@ -10,8 +10,8 @@ From a fresh Ubuntu VPS:
 
 ```bash
 sudo apt update && sudo apt install -y git
-git clone https://github.com/F0551L/openclaw-vps-autoconfig.git
-cd openclaw-vps-autoconfig
+git clone https://github.com/F0551L/ClawTier.git
+cd ClawTier
 sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
 ```
 
@@ -47,7 +47,7 @@ sudo bash bootstrap.sh -f ad
 
 ## Overview
 
-This repo defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
+ClawTier defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
 
 ZeroTier is part of the baseline, not an optional add-on. The intended access model is SSH over the VPS public IP for initial provisioning, then OpenClaw over the private ZeroTier network.
 
@@ -89,8 +89,8 @@ ssh user@YOUR_IP
 
 ```bash
 sudo apt update && sudo apt install -y git
-git clone https://github.com/F0551L/openclaw-vps-autoconfig.git
-cd openclaw-vps-autoconfig
+git clone https://github.com/F0551L/ClawTier.git
+cd ClawTier
 sudo bash bootstrap.sh -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
@@ -135,9 +135,9 @@ sudo bash bootstrap.sh -f ad
 To keep repeat rebuild inputs in one place, use a root-owned env file:
 
 ```bash
-sudo install -m 600 -o root -g root /dev/null /root/openclaw-bootstrap.env
-sudo nano /root/openclaw-bootstrap.env
-sudo bash bootstrap.sh --env-file /root/openclaw-bootstrap.env -y -ocd -sad
+sudo install -m 600 -o root -g root /dev/null /root/clawtier-bootstrap.env
+sudo nano /root/clawtier-bootstrap.env
+sudo bash bootstrap.sh --env-file /root/clawtier-bootstrap.env -y -ocd -sad
 ```
 
 Example env file:
@@ -164,7 +164,7 @@ sudo bash bootstrap.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --zt-address-timeout 
 For forks or custom script sources, override the update source:
 
 ```bash
-sudo bash bootstrap.sh -u -s https://github.com/YOUR_USERNAME/openclaw-vps-autoconfig.git -n YOUR_ZEROTIER_NETWORK_ID
+sudo bash bootstrap.sh -u -s https://github.com/YOUR_USERNAME/ClawTier.git -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
 To install an SSH public key for the admin user during bootstrap:
