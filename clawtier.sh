@@ -197,6 +197,11 @@ require_zerotier_network_id() {
   fi
 }
 
+zerotier_has_joined_network() {
+  command -v zerotier-cli >/dev/null 2>&1 || return 1
+  zerotier-cli listnetworks 2>/dev/null | awk '/^200 listnetworks/ { found = 1 } END { exit found ? 0 : 1 }'
+}
+
 ensure_zerotier_installed() {
   echo "== Installing ZeroTier =="
   if command -v zerotier-cli >/dev/null 2>&1; then
@@ -245,6 +250,11 @@ zerotier_has_connected_network() {
 }
 
 join_zerotier_network() {
+  if [[ -z "$ZT_NETWORK_ID" ]] && zerotier_has_joined_network; then
+    echo "ZeroTier is already joined to a network; skipping network join."
+    return 0
+  fi
+
   require_zerotier_network_id
 
   if zerotier-cli listnetworks 2>/dev/null | awk '{ print $3 }' | grep -qi "^${ZT_NETWORK_ID}$"; then
@@ -414,7 +424,7 @@ run_component_updates() {
 
   if $do_openclaw; then
     echo "-- Updating OpenClaw --"
-    run_script "scripts/install-openclaw.sh"
+    OPENCLAW_FORCE_INSTALL=true run_script "scripts/install-openclaw.sh"
   fi
 }
 
@@ -654,10 +664,6 @@ fi
 
 echo "== Bootstrap start =="
 echo "Starting from step: $START_STEP"
-
-if [[ "$(step_number "$START_STEP")" -lt "$(step_number docker)" ]]; then
-  require_zerotier_network_id
-fi
 
 if should_run base; then
   echo "== Updating system =="
