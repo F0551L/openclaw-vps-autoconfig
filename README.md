@@ -466,7 +466,6 @@ Future option:
 * Multi-network exposure support
 * ZeroTier route profile management with a fast override path for per-network defaults (including default-route behavior), plus interactive warnings when a selected network advertises catch-all routes (for example `0.0.0.0/0`) that require enabling Forward Traffic on the remote endpoint to avoid external connectivity loss and lockout
 * Full reset mode to uninstall everything and rebuild from scratch in one command
-* Single-step reset/reinstall mode to redo one stage without forcing a complete rebuild
 * Smart resumption for partial runs
 * Idempotent bootstrap steps that skip already configured work and avoid overwriting existing config
 * Distro-aware setup script
