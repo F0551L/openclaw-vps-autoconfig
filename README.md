@@ -1,10 +1,24 @@
 # [ClawTier](https://github.com/F0551L/ClawTier): [OpenClaw](https://github.com/openclaw/openclaw)-via-[ZeroTier](https://www.zerotier.com/) VPS Bootstrap
 
-*Aims to be a comprehensive management solution for commonly used OpenClaw-over-ZeroTier settings and options.*
+*Bootstrap scripts for running OpenClaw on a disposable Ubuntu VPS with private ZeroTier access.*
 
-> ✨ **In short:** this repo helps you spin up OpenClaw quickly on an Ubuntu VPS, while keeping access private through ZeroTier.
+> ✨ **In short:** fast, repeatable OpenClaw setup with a ZeroTier-first access model.
 
-Bootstrap and configuration scripts for a disposable Ubuntu VPS running [OpenClaw](https://github.com/openclaw/openclaw) with private access over [ZeroTier](https://www.zerotier.com/).
+---
+
+## 🧭 Overview
+
+ClawTier defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
+
+ZeroTier is part of the baseline, not an optional add-on. The intended access model is SSH over the VPS public IP for initial provisioning, then OpenClaw over the private ZeroTier network.
+
+### 🎯 Goals
+
+* Rebuild from scratch in minutes
+* Avoid manual configuration drift
+* Keep infrastructure simple and reproducible
+* Prefer ephemeral / disposable servers
+* Separate base system setup from application setup
 
 ---
 
@@ -46,22 +60,6 @@ sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -
 sudo bash clawtier.sh -f p -sad
 sudo bash clawtier.sh -f ad
 ```
-
----
-
-## 🧭 Overview
-
-ClawTier defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
-
-ZeroTier is part of the baseline, not an optional add-on. The intended access model is SSH over the VPS public IP for initial provisioning, then OpenClaw over the private ZeroTier network.
-
-### 🎯 Goals
-
-* Rebuild from scratch in minutes
-* Avoid manual configuration drift
-* Keep infrastructure simple and reproducible
-* Prefer ephemeral / disposable servers
-* Separate base system setup from application setup
 
 ---
 
@@ -252,7 +250,7 @@ sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -lbu
 
 ---
 
-### 6. Reboot (if required)
+### 6️⃣ Reboot (if required)
 
 ```bash
 sudo reboot
