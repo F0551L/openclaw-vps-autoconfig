@@ -283,8 +283,10 @@ const controlUi = ensureObject(gateway, "controlUi");
 const auth = ensureObject(gateway, "auth");
 const remote = ensureObject(gateway, "remote");
 const token = preferredToken || auth.token || crypto.randomBytes(32).toString("hex");
+const existingOrigins = Array.isArray(controlUi.allowedOrigins) ? controlUi.allowedOrigins : [];
+const requiredOrigins = JSON.parse(allowedOriginsJson);
 
-controlUi.allowedOrigins = JSON.parse(allowedOriginsJson);
+controlUi.allowedOrigins = [...new Set([...existingOrigins, ...requiredOrigins])];
 auth.mode = "token";
 auth.token = token;
 remote.token = token;
