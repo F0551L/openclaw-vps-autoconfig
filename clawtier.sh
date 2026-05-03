@@ -621,10 +621,8 @@ if should_run base; then
     jq \
     unattended-upgrades
 
-  echo "== Allowing SSH and ZeroTier through UFW =="
+  echo "== Allowing SSH through UFW =="
   ufw allow 22/tcp
-  ufw allow 9993/udp
-  #ufw allow 9993/tcp     # disabled for now
   ufw --force enable
 fi
 

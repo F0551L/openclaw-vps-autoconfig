@@ -389,7 +389,7 @@ This bootstrap is designed to reduce exposed attack surface for a disposable VPS
 ### Network controls
 
 * `ufw` is enabled during bootstrap.
-* SSH (`22/tcp`) and ZeroTier (`9993/udp`) are allowed.
+* SSH (`22/tcp`) is allowed.
 * OpenClaw is kept on loopback (`127.0.0.1:18789`) and not exposed directly on the public interface.
 * The Caddy reverse proxy binds to the ZeroTier interface/IP so Control UI access is limited to ZeroTier peers.
 * In ZeroTier Central, keep **Access Control** set to a **Private** network (not **Public**) so member authorization remains required and devices can be de-authorized when needed.
@@ -425,7 +425,6 @@ This bootstrap is designed to reduce exposed attack surface for a disposable VPS
 Default open ports:
 
 * `22/tcp` — SSH
-* `9993/udp` — ZeroTier
 * OpenClaw reverse proxy ports — ZeroTier interface only, if enabled
 
 Future option:
