@@ -19,6 +19,7 @@ ZT_DETECT_INTERVAL="${ZT_DETECT_INTERVAL:-10}"
 DEFAULT_UPDATE_SOURCE="https://github.com/F0551L/ClawTier.git"
 UPDATE_SCRIPTS=false
 UPDATE_SCRIPTS_ONLY=false
+UPDATE_COMPONENTS=""
 UPDATE_SOURCE="${UPDATE_SOURCE:-}"
 UPDATE_REF="${UPDATE_REF:-}"
 ENV_FILE="${ENV_FILE:-}"
@@ -33,6 +34,9 @@ Options:
                               ZeroTier network ID to join.
   -u, -us, --update-scripts   Update this bootstrap checkout before continuing.
   -uso, --update-scripts-only Update this bootstrap checkout, then exit.
+  -uc, --update-components LIST
+                              Update installed components (all, c/caddy, oc/openclaw, zt/zerotier).
+                              Use comma-delimited values, e.g. oc,zt.
   -s, -source, --update-source URL
                               Override Git source for script updates.
   -r, -ref, --update-ref REF  Override Git ref for script updates. Default: current branch.
@@ -84,6 +88,8 @@ Examples:
   sudo bash clawtier.sh -n 0123456789abcdef -f p
   sudo bash clawtier.sh -n 0123456789abcdef -ocd -sad
   sudo bash clawtier.sh -f ad
+  sudo bash clawtier.sh -uc all
+  sudo bash clawtier.sh -uc c,oc,zt
 EOF
 }
 
@@ -320,6 +326,70 @@ update_scripts() {
   exec bash "$0" "${restart_args[@]}"
 }
 
+normalize_component_token() {
+  local token="${1,,}"
+  token="${token//[[:space:]]/}"
+
+  case "$token" in
+    all) echo "all" ;;
+    c|caddy|proxy) echo "caddy" ;;
+    oc|openclaw) echo "openclaw" ;;
+    zt|zerotier) echo "zerotier" ;;
+    *)
+      echo "Unknown component: $1"
+      echo "Supported values: all, c/caddy, oc/openclaw, zt/zerotier"
+      exit 1
+      ;;
+  esac
+}
+
+run_component_updates() {
+  local raw_list="$1"
+  local token normalized
+  local -a requested=()
+  local do_caddy=false
+  local do_openclaw=false
+  local do_zerotier=false
+
+  IFS=',' read -r -a requested <<<"$raw_list"
+  if [[ "${#requested[@]}" -eq 0 ]]; then
+    echo "--update-components requires at least one component."
+    exit 1
+  fi
+
+  for token in "${requested[@]}"; do
+    normalized="$(normalize_component_token "$token")"
+    case "$normalized" in
+      all)
+        do_caddy=true
+        do_openclaw=true
+        do_zerotier=true
+        ;;
+      caddy) do_caddy=true ;;
+      openclaw) do_openclaw=true ;;
+      zerotier) do_zerotier=true ;;
+    esac
+  done
+
+  echo "== Updating selected components =="
+  if $do_caddy; then
+    echo "-- Updating Caddy proxy --"
+    run_script "scripts/expose-openclaw-zerotier.sh"
+  fi
+
+  if $do_zerotier; then
+    echo "-- Updating ZeroTier --"
+    curl -s https://install.zerotier.com | bash
+    ensure_zerotier_service
+    zerotier-cli -v || true
+  fi
+
+  if $do_openclaw; then
+    echo "-- Updating OpenClaw --"
+    run_script "scripts/install-openclaw.sh"
+  fi
+}
+
 lock_bootstrap_user() {
   local bootstrap_user="${SUDO_USER:-}"
 
@@ -376,6 +446,14 @@ while [[ $# -gt 0 ]]; do
       UPDATE_SCRIPTS=true
       UPDATE_SCRIPTS_ONLY=true
       shift
+      ;;
+    -uc|--update-components)
+      UPDATE_COMPONENTS="${2:-}"
+      if [[ -z "$UPDATE_COMPONENTS" ]]; then
+        echo "$1 requires a value."
+        exit 1
+      fi
+      shift 2
       ;;
     -s|-source|--update-source)
       UPDATE_SOURCE="${2:-}"
@@ -511,6 +589,10 @@ load_env_file "$ENV_FILE"
 
 if $UPDATE_SCRIPTS; then
   update_scripts
+fi
+
+if [[ -n "$UPDATE_COMPONENTS" ]]; then
+  run_component_updates "$UPDATE_COMPONENTS"
 fi
 
 echo "== Bootstrap start =="

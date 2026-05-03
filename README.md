@@ -108,6 +108,14 @@ To pull the latest bootstrap scripts from Git before continuing:
 sudo bash clawtier.sh -u -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
+To update installed component versions (currently Caddy proxy, OpenClaw, and ZeroTier):
+
+```bash
+sudo bash clawtier.sh -uc all
+sudo bash clawtier.sh -uc c,oc,zt
+sudo bash clawtier.sh --update-components caddy,openclaw,zerotier
+```
+
 To update the scripts and stop before running any setup:
 
 ```bash
@@ -465,10 +473,8 @@ Future option:
 * Consolidate container-related calls
 * Distro-aware setup script
 * Optional script self-update when run from a Git repo, balancing safety with the existing opt-in update flag
-* Option to update ZeroTier and OpenClaw versions, if not already covered by existing update flows
 * Restrict SSH access to ZeroTier after initial provisioning
 * Automated rebuild workflow
 * Optional SSH hardening script
 
 ---
-
