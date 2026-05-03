@@ -1,5 +1,7 @@
 # ClawTier: OpenClaw-via-ZeroTier VPS Bootstrap
 
+*Aims to be a comprehensive management solution for commonly used OpenClaw-over-ZeroTier settings and options.*
+
 Bootstrap and configuration scripts for a disposable Ubuntu VPS running OpenClaw with private access over ZeroTier.
 
 ---
@@ -464,8 +466,3 @@ Future option:
 
 ---
 
-## Notes
-
-This setup is intentionally simple. Complexity should only be added when it provides clear value.
-
----
