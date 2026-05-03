@@ -417,6 +417,31 @@ This bootstrap is designed to reduce exposed attack surface for a disposable VPS
 * In ZeroTier Central, keep **Access Control** set to a **Private** network (not **Public**) so member authorization remains required and devices can be de-authorized when needed.
 * ⚠️ **Strong warning:** if the network is set to **Public** instead of **Private**, anyone who discovers your Network ID can join and reach your OpenClaw Control UI endpoint.
 * For terminology and platform guidance, see ZeroTier docs on [Network access control (Public vs Private)](https://docs.zerotier.com/networks/) and [ZeroTier Security](https://docs.zerotier.com/security/).
+* In ZeroTier Central **Flow Rules**, apply a default-deny policy that only permits remote-management and OpenClaw web ports (SSH 22/TCP, HTTP 80/TCP, HTTPS 443/TCP). The ZeroTier Rules Engine docs include a near-exact starter example (**"Example 1: Allow Only SSH and Web Traffic"**) for this pattern.
+* Suggested starting Flow Rules (adapt from docs to your environment):
+
+```text
+# Allow SSH
+accept
+  ipprotocol tcp
+  and dport 22;
+
+# Allow HTTP/HTTPS
+accept
+  ipprotocol tcp
+  and dport 80 or dport 443;
+
+# Block new TCP connections that are not explicitly allowed
+break
+  chr tcp_syn
+  and not chr tcp_ack;
+
+# Allow remaining traffic (reply packets, ICMP, other required protocols)
+accept;
+```
+
+* After applying Flow Rules, test from an authorized node: SSH should work, OpenClaw via HTTP/HTTPS should work, and non-approved new inbound TCP ports should fail.
+* ZeroTier rule behavior is stateless; validate both directions of any traffic you intentionally allow and keep this in mind when tightening policies.
 
 ### Access controls
 
