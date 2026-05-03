@@ -1,12 +1,28 @@
 # [ClawTier](https://github.com/F0551L/ClawTier): [OpenClaw](https://github.com/openclaw/openclaw)-via-[ZeroTier](https://www.zerotier.com/) VPS Bootstrap
 
-*Aims to be a comprehensive management solution for commonly used OpenClaw-over-ZeroTier settings and options.*
+*Bootstrap scripts for running OpenClaw on a disposable Ubuntu VPS with private ZeroTier access.*
 
-Bootstrap and configuration scripts for a disposable Ubuntu VPS running [OpenClaw](https://github.com/openclaw/openclaw) with private access over [ZeroTier](https://www.zerotier.com/).
+> ✨ **In short:** fast, repeatable OpenClaw setup with a ZeroTier-first access model.
 
 ---
 
-## Quick Start
+## 🧭 Overview
+
+ClawTier defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
+
+ZeroTier is part of the baseline, not an optional add-on. The intended access model is SSH over the VPS public IP for initial provisioning, then OpenClaw over the private ZeroTier network.
+
+### 🎯 Goals
+
+* Rebuild from scratch in minutes
+* Avoid manual configuration drift
+* Keep infrastructure simple and reproducible
+* Prefer ephemeral / disposable servers
+* Separate base system setup from application setup
+
+---
+
+## 🚀 Quick Start
 
 From a fresh Ubuntu VPS:
 
@@ -36,7 +52,7 @@ Suggested `/root/zerotier-central.token` contents (single line):
 YOUR_ZEROTIER_CENTRAL_API_TOKEN
 ```
 
-If [ZeroTier Central](https://my.zerotier.com/) has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
+⚠️ If [ZeroTier Central](https://my.zerotier.com/) has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
 
 ```bash
 sudo bash clawtier.sh -f p -sad
@@ -56,7 +72,7 @@ sudo bash clawtier.sh -f ad
 
 The `ad` step can be rerun any time a new browser/profile needs approval.
 
-For unattended bootstrap runs that should not wait for ZeroTier address assignment, skip the proxy and approval handoffs until later:
+🤖 For unattended bootstrap runs that should not wait for ZeroTier address assignment, skip the proxy and approval handoffs until later:
 
 ```bash
 sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
@@ -66,39 +82,23 @@ sudo bash clawtier.sh -f ad
 
 ---
 
-## Overview
+## 🛠️ Usage
 
-ClawTier defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
-
-ZeroTier is part of the baseline, not an optional add-on. The intended access model is SSH over the VPS public IP for initial provisioning, then OpenClaw over the private ZeroTier network.
-
-### Goals
-
-* Rebuild from scratch in minutes
-* Avoid manual configuration drift
-* Keep infrastructure simple and reproducible
-* Prefer ephemeral / disposable servers
-* Separate base system setup from application setup
-
----
-
-## Usage
-
-Recommended reading order:
+Recommended reading order (for quickest success):
 
 1. **Quick Start** for a first successful run.
 2. **Non-interactive options** if you want unattended provisioning.
 3. **Step resume and skip flags** for troubleshooting and partial reruns.
 4. **Security notes** to understand hardening choices.
 
-### 1. Provision VPS
+### 1️⃣ Provision VPS
 
 * Create a new VPS (e.g. Contabo)
 * Choose a standard Linux image (Ubuntu recommended)
 
 ---
 
-### 2. Connect via SSH
+### 2️⃣ Connect via SSH
 
 ```bash
 ssh user@YOUR_IP
@@ -106,7 +106,7 @@ ssh user@YOUR_IP
 
 ---
 
-### 3. Run bootstrap
+### 3️⃣ Run bootstrap
 
 ```bash
 sudo apt update && sudo apt install -y git
@@ -121,13 +121,13 @@ During bootstrap you may be prompted for:
 
 Bootstrap creates a sudo-capable `ocadmin` user by default. Docker, OpenClaw, and the ZeroTier reverse proxy also run by default. Use the skip flags below when you want to stop before one of those stages.
 
-To pull the latest bootstrap scripts from Git before continuing:
+🔄 To pull the latest bootstrap scripts from Git before continuing:
 
 ```bash
 sudo bash clawtier.sh -u -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
-To update installed component versions (currently Caddy proxy, OpenClaw, and ZeroTier):
+⬆️ To update installed component versions (currently Caddy proxy, OpenClaw, and ZeroTier):
 
 ```bash
 sudo bash clawtier.sh -uc all
@@ -135,7 +135,7 @@ sudo bash clawtier.sh -uc c,oc,zt
 sudo bash clawtier.sh --update-components caddy,openclaw,zerotier
 ```
 
-To update the scripts and stop before running any setup:
+🧪 To update the scripts and stop before running any setup:
 
 ```bash
 sudo bash clawtier.sh -uso
@@ -143,7 +143,7 @@ sudo bash clawtier.sh -uso
 
 ---
 
-### 4. Optional: run non-interactively
+### 4️⃣ Optional: run non-interactively
 
 ```bash
 sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
@@ -221,7 +221,7 @@ sudo env ADMIN_PASSWORD_FILE=/root/ocadmin.password bash clawtier.sh -y -n YOUR_
 
 ---
 
-### 5. Resume from a specific step
+### 5️⃣ Resume from a specific step
 
 If a run is interrupted, call `clawtier.sh` again with `-f, --from`:
 
@@ -272,7 +272,7 @@ sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -lbu
 
 ---
 
-### 6. Reboot (if required)
+### 6️⃣ Reboot (if required)
 
 ```bash
 sudo reboot
