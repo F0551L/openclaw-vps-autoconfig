@@ -140,25 +140,11 @@ format_origin() {
   fi
 }
 
-run_openclaw_cli() {
-  (
-    cd "$OPENCLAW_DIR"
-    docker compose run --rm openclaw-cli "$@"
-  )
-}
-
-get_existing_gateway_token() {
-  (
-    cd "$OPENCLAW_DIR"
-    docker compose run --rm --entrypoint node openclaw-cli -e 'try { const fs = require("fs"); const config = JSON.parse(fs.readFileSync("/home/node/.openclaw/openclaw.json", "utf8")); process.stdout.write(config?.gateway?.auth?.token || ""); } catch {}'
-  )
-}
-
-configure_openclaw_allowed_origins() {
-  local http_control_origin https_control_origin allowed_origins
+configure_openclaw_gateway() {
+  local http_control_origin https_control_origin allowed_origins configured_token
 
   if [[ ! -d "$OPENCLAW_DIR" ]]; then
-    echo "OpenClaw directory not found at $OPENCLAW_DIR; skipping Control UI allowed origin config."
+    echo "OpenClaw directory not found at $OPENCLAW_DIR; skipping gateway config."
     return 0
   fi
 
@@ -171,30 +157,47 @@ configure_openclaw_allowed_origins() {
   echo "Allowed origins:"
   echo "  ${http_control_origin}"
   echo "  ${https_control_origin}"
-  run_openclaw_cli config set gateway.controlUi.allowedOrigins "$allowed_origins"
-}
-
-configure_openclaw_gateway_auth() {
-  local existing_token
-
-  if [[ ! -d "$OPENCLAW_DIR" ]]; then
-    echo "OpenClaw directory not found at $OPENCLAW_DIR; skipping gateway token config."
-    return 0
-  fi
-
-  if [[ -z "$GATEWAY_TOKEN" ]]; then
-    existing_token="$(get_existing_gateway_token)"
-    if [[ -n "$existing_token" ]]; then
-      GATEWAY_TOKEN="$existing_token"
-    else
-      GATEWAY_TOKEN="$(openssl rand -hex 32)"
-    fi
-  fi
 
   echo "== Configuring OpenClaw gateway token auth =="
-  run_openclaw_cli config set gateway.auth.mode token
-  run_openclaw_cli config set gateway.auth.token "$GATEWAY_TOKEN"
-  run_openclaw_cli config set gateway.remote.token "$GATEWAY_TOKEN"
+  configured_token="$(
+    cd "$OPENCLAW_DIR"
+    docker compose run --rm -T --entrypoint node openclaw-cli - "$allowed_origins" "$GATEWAY_TOKEN" <<'NODE'
+const crypto = require("crypto");
+const fs = require("fs");
+
+const [allowedOriginsJson, preferredToken] = process.argv.slice(2);
+const configPath = "/home/node/.openclaw/openclaw.json";
+const configDir = "/home/node/.openclaw";
+
+let config = {};
+try {
+  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} catch {}
+
+const ensureObject = (parent, key) => {
+  if (!parent[key] || typeof parent[key] !== "object" || Array.isArray(parent[key])) {
+    parent[key] = {};
+  }
+  return parent[key];
+};
+
+const gateway = ensureObject(config, "gateway");
+const controlUi = ensureObject(gateway, "controlUi");
+const auth = ensureObject(gateway, "auth");
+const remote = ensureObject(gateway, "remote");
+const token = preferredToken || auth.token || crypto.randomBytes(32).toString("hex");
+
+controlUi.allowedOrigins = JSON.parse(allowedOriginsJson);
+auth.mode = "token";
+auth.token = token;
+remote.token = token;
+
+fs.mkdirSync(configDir, { recursive: true });
+fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+process.stdout.write(token);
+NODE
+  )"
+  GATEWAY_TOKEN="$configured_token"
 }
 
 generate_self_signed_cert() {
@@ -355,8 +358,7 @@ systemctl daemon-reload
 systemctl enable "$PROXY_NAME"
 systemctl restart "$PROXY_NAME"
 
-configure_openclaw_allowed_origins
-configure_openclaw_gateway_auth
+configure_openclaw_gateway
 echo "== Restarting OpenClaw after gateway config changes =="
 if [[ -d "$OPENCLAW_DIR" ]]; then
   (

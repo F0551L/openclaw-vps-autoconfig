@@ -470,7 +470,6 @@ Future option:
 * Single-step reset/reinstall mode to redo one stage without forcing a complete rebuild
 * Smart resumption for partial runs
 * Idempotent bootstrap steps that skip already configured work and avoid overwriting existing config
-* Consolidate container-related calls
 * Distro-aware setup script
 * Optional script self-update when run from a Git repo, balancing safety with the existing opt-in update flag
 * Restrict SSH access to ZeroTier after initial provisioning
