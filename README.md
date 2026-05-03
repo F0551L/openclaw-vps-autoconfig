@@ -1,8 +1,8 @@
-# ClawTier: OpenClaw-via-ZeroTier VPS Bootstrap
+# [ClawTier](https://github.com/F0551L/ClawTier): [OpenClaw](https://github.com/openclaw/openclaw)-via-[ZeroTier](https://www.zerotier.com/) VPS Bootstrap
 
 *Aims to be a comprehensive management solution for commonly used OpenClaw-over-ZeroTier settings and options.*
 
-Bootstrap and configuration scripts for a disposable Ubuntu VPS running OpenClaw with private access over ZeroTier.
+Bootstrap and configuration scripts for a disposable Ubuntu VPS running [OpenClaw](https://github.com/openclaw/openclaw) with private access over [ZeroTier](https://www.zerotier.com/).
 
 ---
 
@@ -17,7 +17,7 @@ cd ClawTier
 sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd -sad
 ```
 
-If ZeroTier Central has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
+If [ZeroTier Central](https://my.zerotier.com/) has not assigned the VPS an address yet, authorize the printed node ID, then rerun the proxy step:
 
 ```bash
 sudo bash clawtier.sh -f p -sad
@@ -298,7 +298,7 @@ This separation allows:
 * changing app stack without touching base config
 * easier rebuilds and experimentation
 
-OpenClaw is installed using its official Docker-based setup script, which manages its own containers and configuration.
+[OpenClaw](https://github.com/openclaw/openclaw) is installed using its official Docker-based setup script, which manages its own containers and configuration.
 By default, `scripts/install-openclaw.sh` checks out GitHub's latest OpenClaw release tag instead of repository HEAD. To pin or test a different ref:
 
 ```bash
@@ -384,6 +384,9 @@ This bootstrap is designed to reduce exposed attack surface for a disposable VPS
 * SSH (`22/tcp`) and ZeroTier (`9993/udp`) are allowed.
 * OpenClaw is kept on loopback (`127.0.0.1:18789`) and not exposed directly on the public interface.
 * The Caddy reverse proxy binds to the ZeroTier interface/IP so Control UI access is limited to ZeroTier peers.
+* In ZeroTier Central, keep **Access Control** set to a **Private** network (not **Public**) so member authorization remains required and devices can be de-authorized when needed.
+* ⚠️ **Strong warning:** if the network is set to **Public** instead of **Private**, anyone who discovers your Network ID can join and reach your OpenClaw Control UI endpoint.
+* For terminology and platform guidance, see ZeroTier docs on [Network access control (Public vs Private)](https://docs.zerotier.com/networks/) and [ZeroTier Security](https://docs.zerotier.com/security/).
 
 ### Access controls
 
@@ -407,7 +410,7 @@ This bootstrap is designed to reduce exposed attack surface for a disposable VPS
 
 ## Networking
 
-* Primary access via ZeroTier private network
+* Primary access via [ZeroTier](https://www.zerotier.com/) private network
 * Public exposure should be avoided where possible
 * ZeroTier setup is required before exposing OpenClaw
 
