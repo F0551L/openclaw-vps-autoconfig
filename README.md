@@ -234,13 +234,15 @@ sudo bash clawtier.sh -f ad
 
 When resuming from `docker` or `openclaw`, bootstrap checks whether ZeroTier is connected. If no connected ZeroTier network is found, it asks for `-n` interactively and tries to join before continuing.
 
+Bootstrap steps are safe to rerun after partial or manual setup. Docker and ZeroTier installs are skipped when already installed, an existing ZeroTier network membership is reused when no network ID is provided, and OpenClaw setup is skipped when an existing Docker Compose install is detected. The proxy step remains rerunnable so it can refresh the ZeroTier address, Caddy config, allowed Control UI origins, and gateway token without reinstalling OpenClaw.
+
 Available steps:
 
 * `b`, `base` — system packages, firewall, fail2ban
 * `au`, `admin-user` — create a sudo-capable admin user, default `ocadmin`
-* `zt`, `zerotier` — install ZeroTier and join the required network
-* `d`, `docker` — install Docker
-* `oc`, `openclaw` — install OpenClaw
+* `zt`, `zerotier` — install ZeroTier and join the requested network, or reuse an existing joined network
+* `d`, `docker` — install Docker, or start/enable an existing Docker service
+* `oc`, `openclaw` — install OpenClaw, or skip when an existing install is detected
 * `p`, `proxy` — expose OpenClaw to ZeroTier peers through Caddy
 * `ad`, `approve-device` — interactively approve a pending Control UI browser device
 * `rc`, `reboot-check` — check whether the VPS needs a reboot
@@ -515,8 +517,6 @@ Future option:
 * Multi-network exposure support
 * ZeroTier route profile management with a fast override path for per-network defaults (including default-route behavior), plus interactive warnings when a selected network advertises catch-all routes (for example `0.0.0.0/0`) that require enabling Forward Traffic on the remote endpoint to avoid external connectivity loss and lockout
 * Full reset mode to uninstall everything and rebuild from scratch in one command
-* Smart resumption for partial runs
-* Idempotent bootstrap steps that skip already configured work and avoid overwriting existing config
 * Distro-aware setup script
 * Optional script self-update when run from a Git repo, balancing safety with the existing opt-in update flag
 * Restrict SSH access to ZeroTier after initial provisioning

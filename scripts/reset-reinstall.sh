@@ -187,4 +187,8 @@ done
 echo ""
 echo "Reset planning complete."
 echo "Next: rerun clawtier bootstrap from the selected step, for example:"
-echo "  sudo bash clawtier.sh -f ${RESET_STEP}"
+if [[ "$RESET_STEP" == "openclaw" ]]; then
+  echo "  sudo OPENCLAW_FORCE_INSTALL=true bash clawtier.sh -f ${RESET_STEP}"
+else
+  echo "  sudo bash clawtier.sh -f ${RESET_STEP}"
+fi

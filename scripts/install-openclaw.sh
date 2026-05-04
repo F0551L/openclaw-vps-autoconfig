@@ -7,6 +7,7 @@ OPENCLAW_LATEST_RELEASE_URL="${OPENCLAW_LATEST_RELEASE_URL:-https://github.com/o
 OPENCLAW_REF="${OPENCLAW_REF:-}"
 OPENCLAW_SETUP_USE_DEFAULTS="${OPENCLAW_SETUP_USE_DEFAULTS:-false}"
 OPENCLAW_SKIP_ONBOARDING="${OPENCLAW_SKIP_ONBOARDING:-}"
+OPENCLAW_FORCE_INSTALL="${OPENCLAW_FORCE_INSTALL:-false}"
 
 echo "== Installing OpenClaw via official Docker setup =="
 
@@ -18,6 +19,34 @@ fi
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is not installed. Run clawtier.sh first."
   exit 1
+fi
+
+is_true() {
+  [[ "${1:-}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
+}
+
+openclaw_compose_has_services() {
+  [[ -d "$OPENCLAW_DIR" ]] || return 1
+  (
+    cd "$OPENCLAW_DIR"
+    docker compose ps --all --services 2>/dev/null | grep -q .
+  )
+}
+
+openclaw_install_detected() {
+  [[ -d "$OPENCLAW_DIR" ]] || return 1
+
+  if openclaw_compose_has_services; then
+    return 0
+  fi
+
+  docker ps --all --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|[-_])openclaw([-_]|$)'
+}
+
+if ! is_true "$OPENCLAW_FORCE_INSTALL" && openclaw_install_detected; then
+  echo "OpenClaw already appears to be installed at $OPENCLAW_DIR; skipping install."
+  echo "Run with OPENCLAW_FORCE_INSTALL=true to rerun the official Docker setup."
+  exit 0
 fi
 
 resolve_openclaw_ref() {
@@ -68,6 +97,12 @@ prepare_openclaw_defaults() {
 }
 
 OPENCLAW_RESOLVED_REF="$(resolve_openclaw_ref)"
+
+if [[ -d "$OPENCLAW_DIR" && ! -d "$OPENCLAW_DIR/.git" ]]; then
+  echo "OpenClaw directory already exists but is not a Git checkout: $OPENCLAW_DIR"
+  echo "Refusing to overwrite it. Set OPENCLAW_DIR to a different path or move the existing directory."
+  exit 1
+fi
 
 if [[ ! -d "$OPENCLAW_DIR/.git" ]]; then
   git clone "$OPENCLAW_REPO" "$OPENCLAW_DIR"
