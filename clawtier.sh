@@ -53,7 +53,7 @@ Options:
   --zt-detect-interval SECONDS
                               Seconds between ZeroTier address detection attempts. Default: 10.
   -f, --from STEP             Start from STEP and continue onward.
-                              Steps: b/base, au/admin-user, zt/zerotier, d/docker,
+                              Steps: b/base, zt/zerotier, au/admin-user, d/docker,
                                      oc/openclaw, p/proxy, ad/approve-device,
                                      rc/reboot-check.
   -au, --admin-user USER      Admin sudo user to create. Default: ocadmin.
@@ -103,8 +103,8 @@ EOF
 step_number() {
   case "$1" in
     b|base|bootstrap) echo 1 ;;
-    au|admin-user|admin|user) echo 2 ;;
-    zt|zerotier) echo 3 ;;
+    zt|zerotier) echo 2 ;;
+    au|admin-user|admin|user) echo 3 ;;
     d|docker) echo 4 ;;
     oc|openclaw) echo 5 ;;
     p|proxy|expose|zerotier-proxy) echo 6 ;;
@@ -299,6 +299,37 @@ run_script() {
     echo "Required script not found: $script_path"
     exit 1
   fi
+}
+
+run_script_as_admin_user() {
+  local script_path="$1"
+  shift || true
+
+  if [[ -z "${ADMIN_USER:-}" ]]; then
+    echo "ADMIN_USER is not set; cannot run script as admin user."
+    exit 1
+  fi
+
+  if ! id "$ADMIN_USER" >/dev/null 2>&1; then
+    echo "Admin user not found: $ADMIN_USER"
+    exit 1
+  fi
+
+  if [[ ! -f "$script_path" ]]; then
+    echo "Required script not found: $script_path"
+    exit 1
+  fi
+
+  local quoted_script quoted_args cmd
+  quoted_script="$(printf '%q' "$PWD/$script_path")"
+  quoted_args=""
+  while (($#)); do
+    quoted_args+=" $(printf '%q' "$1")"
+    shift
+  done
+
+  cmd="sudo -E bash ${quoted_script}${quoted_args}"
+  su - "$ADMIN_USER" -c "$cmd"
 }
 
 update_scripts() {
@@ -692,15 +723,6 @@ if should_run base; then
   configure_fail2ban_sshd_jail
 fi
 
-if should_run admin-user; then
-  if $CREATE_ADMIN_USER; then
-    run_script "scripts/create-admin-user.sh"
-    ADMIN_USER_READY=true
-  else
-    echo "Skipping admin user creation"
-  fi
-fi
-
 if should_run zerotier; then
   ensure_zerotier_installed
   ensure_zerotier_service
@@ -717,11 +739,20 @@ if should_run zerotier; then
   show_zerotier_networks
 fi
 
+if should_run admin-user; then
+  if $CREATE_ADMIN_USER; then
+    run_script "scripts/create-admin-user.sh"
+    ADMIN_USER_READY=true
+  else
+    echo "Skipping admin user creation"
+  fi
+fi
+
 ensure_zerotier_connected_for_resume
 
 if should_run docker; then
   if $INSTALL_DOCKER; then
-    run_script "scripts/install-docker.sh"
+    run_script_as_admin_user "scripts/install-docker.sh"
   else
     echo "Skipping Docker install"
   fi
@@ -730,9 +761,9 @@ fi
 if should_run openclaw; then
   if $INSTALL_OPENCLAW; then
     if $OPENCLAW_DEFAULTS; then
-      OPENCLAW_SETUP_USE_DEFAULTS=true run_script "scripts/install-openclaw.sh"
+      OPENCLAW_SETUP_USE_DEFAULTS=true run_script_as_admin_user "scripts/install-openclaw.sh"
     else
-      run_script "scripts/install-openclaw.sh"
+      run_script_as_admin_user "scripts/install-openclaw.sh"
     fi
   else
     echo "Skipping OpenClaw install"
