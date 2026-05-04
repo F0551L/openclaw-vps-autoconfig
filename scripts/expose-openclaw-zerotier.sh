@@ -10,6 +10,9 @@ PROXY_PORT="${PROXY_PORT:-80}"
 HTTPS_PROXY_PORT="${HTTPS_PROXY_PORT:-443}"
 ZT_IP="${ZT_IP:-}"
 ZT_IFACE="${ZT_IFACE:-}"
+ZT_IPS=()
+ZT_IFACES=()
+ZT_NETWORK_IDS=()
 ZT_DETECT_RETRIES="${ZT_DETECT_RETRIES:-3}"
 ZT_DETECT_INTERVAL="${ZT_DETECT_INTERVAL:-10}"
 WAIT_ZT_ADDRESS="${WAIT_ZT_ADDRESS:-true}"
@@ -64,6 +67,58 @@ fi
 
 is_true() {
   [[ "${1:-}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
+}
+
+parse_zerotier_network_ids() {
+  local raw token existing
+  local -a parsed=()
+
+  ZT_NETWORK_IDS=()
+  if [[ -z "$ZT_NETWORK_ID" ]]; then
+    return 0
+  fi
+
+  raw="${ZT_NETWORK_ID//[[:space:]]/}"
+  IFS=',' read -r -a parsed <<<"$raw"
+
+  for token in "${parsed[@]}"; do
+    if [[ -z "$token" ]]; then
+      echo "Invalid ZeroTier network list: $ZT_NETWORK_ID"
+      echo "Use comma-delimited 16-character hexadecimal network IDs."
+      exit 1
+    fi
+
+    if [[ ! "$token" =~ ^[0-9a-fA-F]{16}$ ]]; then
+      echo "Invalid ZeroTier Network ID format: $token"
+      echo "Expected a 16-character hexadecimal network ID."
+      exit 1
+    fi
+
+    for existing in "${ZT_NETWORK_IDS[@]}"; do
+      if [[ "${existing,,}" == "${token,,}" ]]; then
+        continue 2
+      fi
+    done
+
+    ZT_NETWORK_IDS+=("$token")
+  done
+}
+
+zerotier_network_requested() {
+  local network_id="$1"
+  local requested
+
+  if [[ "${#ZT_NETWORK_IDS[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  for requested in "${ZT_NETWORK_IDS[@]}"; do
+    if [[ "${requested,,}" == "${network_id,,}" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 load_zerotier_api_token() {
@@ -123,20 +178,40 @@ show_zerotier_status() {
   fi
 }
 
-find_zerotier_address() {
-  local iface_path iface ip_addr
+find_zerotier_addresses() {
+  local networks network_id iface ip_addr found_count=0
 
-  shopt -s nullglob
-  for iface_path in /sys/class/net/zt*; do
-    iface="$(basename "$iface_path")"
+  ZT_IPS=()
+  ZT_IFACES=()
+
+  networks="$(zerotier-cli listnetworks 2>/dev/null || true)"
+  while read -r network_id iface; do
+    if [[ -z "$network_id" || -z "$iface" ]]; then
+      continue
+    fi
+
+    if ! zerotier_network_requested "$network_id"; then
+      continue
+    fi
+
     ip_addr="$(ip -4 -o addr show dev "$iface" scope global 2>/dev/null | awk '{ split($4, a, "/"); print a[1]; exit }')"
 
     if [[ -n "$ip_addr" ]]; then
-      ZT_IFACE="$iface"
-      ZT_IP="$ip_addr"
-      return 0
+      ZT_IFACES+=("$iface")
+      ZT_IPS+=("$ip_addr")
+      found_count=$((found_count + 1))
     fi
-  done
+  done < <(awk '/^200 listnetworks/ && $6 == "OK" { print $3, $8 }' <<<"$networks")
+
+  if [[ "${#ZT_NETWORK_IDS[@]}" -gt 0 && "$found_count" -lt "${#ZT_NETWORK_IDS[@]}" ]]; then
+    return 1
+  fi
+
+  if [[ "$found_count" -gt 0 ]]; then
+    ZT_IFACE="${ZT_IFACES[0]}"
+    ZT_IP="${ZT_IPS[0]}"
+    return 0
+  fi
 
   return 1
 }
@@ -181,7 +256,7 @@ get_joined_network_id() {
   '
 }
 
-authorize_zerotier_member() {
+authorize_zerotier_member_for_network() {
   local node_id network_id api_url payload response_file http_code
 
   if [[ -z "$ZEROTIER_API_TOKEN" ]]; then
@@ -189,7 +264,7 @@ authorize_zerotier_member() {
   fi
 
   node_id="$(get_zerotier_node_id)"
-  network_id="$(get_joined_network_id)"
+  network_id="$1"
 
   if [[ -z "$node_id" || -z "$network_id" ]]; then
     echo "ZeroTier API token provided, but node ID or network ID could not be detected."
@@ -225,6 +300,29 @@ authorize_zerotier_member() {
   return 1
 }
 
+authorize_zerotier_members() {
+  local network_id authorized=false
+
+  if [[ -z "$ZEROTIER_API_TOKEN" ]]; then
+    return 1
+  fi
+
+  if [[ "${#ZT_NETWORK_IDS[@]}" -gt 0 ]]; then
+    for network_id in "${ZT_NETWORK_IDS[@]}"; do
+      if authorize_zerotier_member_for_network "$network_id"; then
+        authorized=true
+      fi
+    done
+  else
+    network_id="$(get_joined_network_id)"
+    if authorize_zerotier_member_for_network "$network_id"; then
+      authorized=true
+    fi
+  fi
+
+  $authorized
+}
+
 format_origin() {
   local scheme="$1"
   local host="$2"
@@ -238,22 +336,25 @@ format_origin() {
 }
 
 configure_openclaw_gateway() {
-  local http_control_origin https_control_origin allowed_origins configured_token
+  local zt_ip http_control_origin https_control_origin allowed_origins configured_token
 
   if [[ ! -d "$OPENCLAW_DIR" ]]; then
     echo "OpenClaw directory not found at $OPENCLAW_DIR; skipping gateway config."
     return 0
   fi
 
-  http_control_origin="$(format_origin http "$ZT_IP" "$PROXY_PORT")"
-  https_control_origin="$(format_origin https "$ZT_IP" "$HTTPS_PROXY_PORT")"
-
-  allowed_origins="[\"http://localhost:18789\",\"http://127.0.0.1:18789\",\"${http_control_origin}\",\"${https_control_origin}\"]"
+  allowed_origins='["http://localhost:18789","http://127.0.0.1:18789"'
 
   echo "== Allowing OpenClaw Control UI origins =="
   echo "Allowed origins:"
-  echo "  ${http_control_origin}"
-  echo "  ${https_control_origin}"
+  for zt_ip in "${ZT_IPS[@]}"; do
+    http_control_origin="$(format_origin http "$zt_ip" "$PROXY_PORT")"
+    https_control_origin="$(format_origin https "$zt_ip" "$HTTPS_PROXY_PORT")"
+    allowed_origins+=",\"${http_control_origin}\",\"${https_control_origin}\""
+    echo "  ${http_control_origin}"
+    echo "  ${https_control_origin}"
+  done
+  allowed_origins+=']'
 
   echo "== Configuring OpenClaw gateway token auth =="
   configured_token="$(
@@ -283,10 +384,9 @@ const controlUi = ensureObject(gateway, "controlUi");
 const auth = ensureObject(gateway, "auth");
 const remote = ensureObject(gateway, "remote");
 const token = preferredToken || auth.token || crypto.randomBytes(32).toString("hex");
-const existingOrigins = Array.isArray(controlUi.allowedOrigins) ? controlUi.allowedOrigins : [];
 const requiredOrigins = JSON.parse(allowedOriginsJson);
 
-controlUi.allowedOrigins = [...new Set([...existingOrigins, ...requiredOrigins])];
+controlUi.allowedOrigins = [...new Set(requiredOrigins)];
 auth.mode = "token";
 auth.token = token;
 remote.token = token;
@@ -300,10 +400,11 @@ NODE
 }
 
 generate_self_signed_cert() {
+  local zt_ip="$1"
   local cert_dir cert_name cert_path key_path
 
   cert_dir="${PROXY_DIR}/certs"
-  cert_name="openclaw-zt-${ZT_IP}"
+  cert_name="openclaw-zt-${zt_ip}"
   cert_path="${cert_dir}/${cert_name}.crt"
   key_path="${cert_dir}/${cert_name}.key"
 
@@ -313,26 +414,32 @@ generate_self_signed_cert() {
   if [[ -f "$cert_path" && -f "$key_path" ]]; then
     echo "== Reusing existing self-signed HTTPS certificate =="
   else
-    echo "== Generating self-signed HTTPS certificate for ${ZT_IP} =="
+    echo "== Generating self-signed HTTPS certificate for ${zt_ip} =="
     openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
       -keyout "$key_path" \
       -out "$cert_path" \
-      -subj "/CN=${ZT_IP}" \
-      -addext "subjectAltName=IP:${ZT_IP}"
+      -subj "/CN=${zt_ip}" \
+      -addext "subjectAltName=IP:${zt_ip}"
     chmod 600 "$key_path"
     chmod 644 "$cert_path"
   fi
 }
 
 show_zerotier_status
+parse_zerotier_network_ids
 load_zerotier_api_token
 
 if [[ -n "$ZT_IP" && -z "$ZT_IFACE" ]]; then
   find_zerotier_interface_for_ip || true
 fi
 
+if [[ -n "$ZT_IP" && -n "$ZT_IFACE" ]]; then
+  ZT_IPS=("$ZT_IP")
+  ZT_IFACES=("$ZT_IFACE")
+fi
+
 if [[ -z "$ZT_IP" || -z "$ZT_IFACE" ]]; then
-  if authorize_zerotier_member; then
+  if authorize_zerotier_members; then
     attempt=$((ZT_DETECT_RETRIES + 1))
   else
     attempt=1
@@ -345,9 +452,9 @@ if [[ -z "$ZT_IP" || -z "$ZT_IFACE" ]]; then
   fi
 
   echo "== Detecting ZeroTier address =="
-  until find_zerotier_address; do
+  until find_zerotier_addresses; do
     echo ""
-    echo "No ZeroTier IPv4 address found."
+    echo "No ZeroTier IPv4 address found for every selected network."
     echo "If the node was just joined, authorize it in ZeroTier Central and wait for an address assignment."
 
     if ! is_true "$WAIT_ZT_ADDRESS"; then
@@ -386,10 +493,12 @@ if [[ -z "$ZT_IP" || -z "$ZT_IFACE" ]]; then
   done
 fi
 
-if [[ ! "$ZT_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-  echo "Invalid ZT_IP: $ZT_IP"
-  exit 1
-fi
+for zt_ip in "${ZT_IPS[@]}"; do
+  if [[ ! "$zt_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo "Invalid ZeroTier IP: $zt_ip"
+    exit 1
+  fi
+done
 
 if [[ ! "$PROXY_PORT" =~ ^[0-9]+$ || "$PROXY_PORT" -lt 1 || "$PROXY_PORT" -gt 65535 ]]; then
   echo "Invalid PROXY_PORT: $PROXY_PORT"
@@ -407,36 +516,46 @@ if [[ "$PROXY_PORT" == "$HTTPS_PROXY_PORT" ]]; then
 fi
 
 echo "== Configuring OpenClaw ZeroTier reverse proxy =="
-echo "ZeroTier interface: $ZT_IFACE"
-echo "ZeroTier address:   $ZT_IP"
+echo "ZeroTier bindings:"
+for binding_index in "${!ZT_IPS[@]}"; do
+  echo "  ${ZT_IFACES[$binding_index]} ${ZT_IPS[$binding_index]}"
+done
 echo "HTTP proxy port:    $PROXY_PORT"
 echo "HTTPS proxy port:   $HTTPS_PROXY_PORT"
 echo "OpenClaw upstream:  $OPENCLAW_UPSTREAM"
 
 mkdir -p "$PROXY_DIR"
-generate_self_signed_cert
+for zt_ip in "${ZT_IPS[@]}"; do
+  generate_self_signed_cert "$zt_ip"
+done
 
-HTTPS_CONTROL_ORIGIN="$(format_origin https "$ZT_IP" "$HTTPS_PROXY_PORT")"
+HTTPS_CONTROL_ORIGIN="$(format_origin https "${ZT_IPS[0]}" "$HTTPS_PROXY_PORT")"
 
-cat > "${PROXY_DIR}/Caddyfile" <<EOF
+cat > "${PROXY_DIR}/Caddyfile" <<'EOF'
 {
 	admin off
 }
 
-http://${ZT_IP}:${PROXY_PORT} {
-	bind ${ZT_IP}
-	redir ${HTTPS_CONTROL_ORIGIN}{uri} permanent
+EOF
+
+for zt_ip in "${ZT_IPS[@]}"; do
+  https_control_origin="$(format_origin https "$zt_ip" "$HTTPS_PROXY_PORT")"
+  cat >> "${PROXY_DIR}/Caddyfile" <<EOF
+http://${zt_ip}:${PROXY_PORT} {
+	bind ${zt_ip}
+	redir ${https_control_origin}{uri} permanent
 }
 
-https://${ZT_IP}:${HTTPS_PROXY_PORT} {
-	bind ${ZT_IP}
-	tls /etc/caddy/certs/openclaw-zt-${ZT_IP}.crt /etc/caddy/certs/openclaw-zt-${ZT_IP}.key
+https://${zt_ip}:${HTTPS_PROXY_PORT} {
+	bind ${zt_ip}
+	tls /etc/caddy/certs/openclaw-zt-${zt_ip}.crt /etc/caddy/certs/openclaw-zt-${zt_ip}.key
 	reverse_proxy http://${OPENCLAW_UPSTREAM}
 	header {
 		-Server
 	}
 }
 EOF
+done
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -475,19 +594,25 @@ fi
 
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   echo "== Allowing proxy ports through UFW on ZeroTier only =="
-  ufw allow in on "$ZT_IFACE" to "$ZT_IP" port "$PROXY_PORT" proto tcp comment "OpenClaw via ZeroTier"
-  ufw allow in on "$ZT_IFACE" to "$ZT_IP" port "$HTTPS_PROXY_PORT" proto tcp comment "OpenClaw HTTPS via ZeroTier"
+  for binding_index in "${!ZT_IPS[@]}"; do
+    ufw allow in on "${ZT_IFACES[$binding_index]}" to "${ZT_IPS[$binding_index]}" port "$PROXY_PORT" proto tcp comment "OpenClaw via ZeroTier"
+    ufw allow in on "${ZT_IFACES[$binding_index]}" to "${ZT_IPS[$binding_index]}" port "$HTTPS_PROXY_PORT" proto tcp comment "OpenClaw HTTPS via ZeroTier"
+  done
 fi
 
 echo ""
 echo "== Done =="
 echo "OpenClaw should be reachable from ZeroTier peers at:"
-echo "  ${HTTPS_CONTROL_ORIGIN}/"
+for zt_ip in "${ZT_IPS[@]}"; do
+  echo "  $(format_origin https "$zt_ip" "$HTTPS_PROXY_PORT")/"
+done
 echo "Tokenized setup URL:"
 echo "  ${HTTPS_CONTROL_ORIGIN}/#token=${GATEWAY_TOKEN}"
 echo ""
-echo "Install and trust this certificate on your client device if the browser does not trust it yet:"
-echo "  ${PROXY_DIR}/certs/openclaw-zt-${ZT_IP}.crt"
+echo "Install and trust these certificates on your client devices if the browser does not trust them yet:"
+for zt_ip in "${ZT_IPS[@]}"; do
+  echo "  ${PROXY_DIR}/certs/openclaw-zt-${zt_ip}.crt"
+done
 echo ""
 echo "Gateway token for the Control UI:"
 echo "  ${GATEWAY_TOKEN}"

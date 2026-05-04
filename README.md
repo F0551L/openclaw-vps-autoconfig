@@ -115,9 +115,16 @@ cd ClawTier
 sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID
 ```
 
+To join and expose OpenClaw on multiple ZeroTier networks, pass a comma-delimited list:
+
+```bash
+sudo bash clawtier.sh -n ZEROTIER_NETWORK_ID_ONE,ZEROTIER_NETWORK_ID_TWO
+```
+
 During bootstrap you may be prompted for:
 
-* ZeroTier Network ID, if `-n` was not provided
+* ZeroTier Network ID(s), if `-n` was not provided
+* Whether to leave already joined ZeroTier networks that were not listed in `-n`
 
 Bootstrap creates a sudo-capable `ocadmin` user by default. Docker, OpenClaw, and the ZeroTier reverse proxy also run by default. Use the skip flags below when you want to stop before one of those stages.
 
@@ -149,7 +156,7 @@ sudo bash clawtier.sh -uso
 sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 ```
 
-`--zerotier-network-id` is also accepted as a longer alias for `-n`.
+`--zerotier-network-id` is also accepted as a longer alias for `-n`. The value can be a single network ID or a comma-delimited list. When `-n` is provided, the list is treated as the desired ZeroTier membership for OpenClaw exposure. Already joined networks not listed in `-n` are offered for removal in interactive mode. In non-interactive mode, unspecified joined networks fail fast unless `--force` is also provided, in which case they are removed automatically.
 
 `-ocd` / `-ud` / `--openclaw-defaults` / `--use-defaults` runs OpenClaw Docker setup in a non-interactive mode that skips the interactive onboarding wizard for later completion. It does not currently apply opinionated onboarding defaults; Docker still generates or reuses the gateway token, and provider/account configuration remains for a later manual pass.
 
@@ -368,13 +375,13 @@ sudo OPENCLAW_REF=main bash scripts/install-openclaw.sh
 Handled by `scripts/expose-openclaw-zerotier.sh`:
 
 * Prints the ZeroTier node ID and joined network IDs
-* Detects the VPS ZeroTier IPv4 address
-* Prompts for retry in interactive mode, or polls in noninteractive mode, if no ZeroTier address is available yet
-* Generates a self-signed HTTPS certificate for the ZeroTier IP
-* Generates a Caddy reverse proxy config with HTTP redirected to HTTPS
+* Detects the VPS ZeroTier IPv4 address for each selected network
+* Prompts for retry in interactive mode, or polls in noninteractive mode, if selected ZeroTier addresses are not available yet
+* Generates a self-signed HTTPS certificate for each ZeroTier IP
+* Generates a Caddy reverse proxy config with one HTTP-to-HTTPS listener per ZeroTier IP
 * Runs Caddy as a Docker container with host networking
-* Binds the proxy to the ZeroTier address only
-* Adds both HTTP and HTTPS ZeroTier Control UI URLs to `gateway.controlUi.allowedOrigins`
+* Binds the proxy to the selected ZeroTier addresses only
+* Resets `gateway.controlUi.allowedOrigins` to localhost plus the current selected HTTP and HTTPS ZeroTier Control UI URLs, removing stale ZeroTier origins from earlier runs
 * Enables token auth and syncs `gateway.remote.token` with `gateway.auth.token`
 * Prints a tokenized Control UI URL for first browser setup
 * Allows the proxy ports through UFW on the ZeroTier interface only
@@ -403,6 +410,7 @@ sudo GATEWAY_TOKEN=existing-or-preferred-token bash scripts/expose-openclaw-zero
 sudo WAIT_ZT_ADDRESS=false bash scripts/expose-openclaw-zerotier.sh
 sudo ZT_ADDRESS_TIMEOUT=300 ZT_DETECT_INTERVAL=15 bash scripts/expose-openclaw-zerotier.sh
 sudo ZT_IP=192.168.194.99 bash scripts/expose-openclaw-zerotier.sh
+sudo ZT_NETWORK_ID=ZEROTIER_NETWORK_ID_ONE,ZEROTIER_NETWORK_ID_TWO bash scripts/expose-openclaw-zerotier.sh
 sudo ZT_DETECT_RETRIES=5 bash scripts/expose-openclaw-zerotier.sh
 ```
 
@@ -538,7 +546,6 @@ Future option:
 
 ## Future Work
 
-* Multi-network exposure support
 * ZeroTier route profile management with a fast override path for per-network defaults (including default-route behavior), plus interactive warnings when a selected network advertises catch-all routes (for example `0.0.0.0/0`) that require enabling Forward Traffic on the remote endpoint to avoid external connectivity loss and lockout
 * Distro-aware setup script
 * Optional script self-update when run from a Git repo, balancing safety with the existing opt-in update flag

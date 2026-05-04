@@ -12,6 +12,7 @@ OPENCLAW_DEFAULTS=false
 LOCK_BOOTSTRAP_USER_ON_SUCCESS=false
 ADMIN_USER_READY=false
 ZT_NETWORK_ID="${ZT_NETWORK_ID:-}"
+ZT_NETWORK_IDS=()
 NONINTERACTIVE="${NONINTERACTIVE:-false}"
 WAIT_ZT_ADDRESS="${WAIT_ZT_ADDRESS:-true}"
 ZT_ADDRESS_TIMEOUT="${ZT_ADDRESS_TIMEOUT:-}"
@@ -23,7 +24,7 @@ UPDATE_COMPONENTS=""
 UPDATE_SOURCE="${UPDATE_SOURCE:-}"
 UPDATE_REF="${UPDATE_REF:-}"
 RESET_STEP="${RESET_STEP:-}"
-FORCE_RESET=false
+FORCE=false
 REINSTALL_AFTER_RESET=false
 ENV_FILE="${ENV_FILE:-}"
 PASSTHROUGH_ARGS=()
@@ -33,8 +34,8 @@ usage() {
 Usage: sudo bash clawtier.sh [options]
 
 Options:
-  -n, --zerotier-network-id ID
-                              ZeroTier network ID to join.
+  -n, --zerotier-network-id ID[,ID...]
+                              ZeroTier network ID(s) to join. Use comma-delimited values.
   -u, -us, --update-scripts   Update this bootstrap checkout before continuing.
   -uso, --update-scripts-only Update this bootstrap checkout, then exit.
   -uc, --update-components LIST
@@ -46,7 +47,8 @@ Options:
   -r, --reset STEP             Reset/reinstall from STEP or mode with cascade handling.
                               Modes: data/clawtier-data, full/all.
   --reinstall                  Continue bootstrap after --reset completes.
-  --force                      Force reset without y/n prompt (used with --reset).
+  --force                      Force reset without y/n prompt, and leave unspecified
+                              ZeroTier networks without prompting when -n is provided.
   -ef, --env-file FILE         Load bootstrap environment values from FILE.
   -y, --non-interactive       Never prompt; fail or skip when input is missing.
   --wait-zt-address           Wait for ZeroTier address assignment before proxy setup. Default.
@@ -71,7 +73,7 @@ Options:
   -h, --help                  Show this help.
 
 Environment:
-  ZT_NETWORK_ID               ZeroTier network ID to join.
+  ZT_NETWORK_ID               ZeroTier network ID(s) to join, comma-delimited for multiple networks.
   NONINTERACTIVE              Set true to disable prompts.
   WAIT_ZT_ADDRESS             Set false to skip proxy setup when no ZeroTier address is assigned.
   ZT_ADDRESS_TIMEOUT          Maximum time to wait for ZeroTier address assignment.
@@ -200,6 +202,41 @@ load_env_file() {
   set +a
 }
 
+parse_zerotier_network_ids() {
+  local raw token existing
+  local -a parsed=()
+
+  ZT_NETWORK_IDS=()
+  if [[ -z "$ZT_NETWORK_ID" ]]; then
+    return 0
+  fi
+
+  raw="${ZT_NETWORK_ID//[[:space:]]/}"
+  IFS=',' read -r -a parsed <<<"$raw"
+
+  for token in "${parsed[@]}"; do
+    if [[ -z "$token" ]]; then
+      echo "Invalid ZeroTier network list: $ZT_NETWORK_ID"
+      echo "Use comma-delimited 16-character hexadecimal network IDs."
+      exit 1
+    fi
+
+    if [[ ! "$token" =~ ^[0-9a-fA-F]{16}$ ]]; then
+      echo "Invalid ZeroTier Network ID format: $token"
+      echo "Expected a 16-character hexadecimal network ID."
+      exit 1
+    fi
+
+    for existing in "${ZT_NETWORK_IDS[@]}"; do
+      if [[ "${existing,,}" == "${token,,}" ]]; then
+        continue 2
+      fi
+    done
+
+    ZT_NETWORK_IDS+=("$token")
+  done
+}
+
 require_zerotier_network_id() {
   while [[ -z "$ZT_NETWORK_ID" ]]; do
     if is_true "$NONINTERACTIVE" || [[ ! -t 0 ]]; then
@@ -210,11 +247,7 @@ require_zerotier_network_id() {
     read -rp "Enter ZeroTier Network ID: " ZT_NETWORK_ID
   done
 
-  if [[ ! "$ZT_NETWORK_ID" =~ ^[0-9a-fA-F]{16}$ ]]; then
-    echo "Invalid ZeroTier Network ID format: $ZT_NETWORK_ID"
-    echo "Expected a 16-character hexadecimal network ID."
-    exit 1
-  fi
+  parse_zerotier_network_ids
 }
 
 zerotier_has_joined_network() {
@@ -269,7 +302,59 @@ zerotier_has_connected_network() {
   zerotier-cli listnetworks 2>/dev/null | awk '/^200 listnetworks/ && $6 == "OK" { found = 1 } END { exit found ? 0 : 1 }'
 }
 
-join_zerotier_network() {
+list_joined_zerotier_network_ids() {
+  zerotier-cli listnetworks 2>/dev/null | awk '/^200 listnetworks/ { print $3 }'
+}
+
+zerotier_network_requested() {
+  local network_id="$1"
+  local requested
+
+  for requested in "${ZT_NETWORK_IDS[@]}"; do
+    if [[ "${requested,,}" == "${network_id,,}" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+reconcile_zerotier_networks() {
+  local joined answer
+
+  if [[ "${#ZT_NETWORK_IDS[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  while read -r joined; do
+    if [[ -z "$joined" ]] || zerotier_network_requested "$joined"; then
+      continue
+    fi
+
+    if $FORCE; then
+      echo "Leaving unspecified ZeroTier network due to --force: $joined"
+      zerotier-cli leave "$joined"
+      continue
+    fi
+
+    if is_true "$NONINTERACTIVE" || [[ ! -t 0 ]]; then
+      echo "Joined ZeroTier network is not listed in -n: $joined"
+      echo "Pass all desired network IDs with -n, or rerun with --force to leave unspecified networks."
+      exit 1
+    fi
+
+    read -rp "Leave unspecified ZeroTier network $joined? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+      zerotier-cli leave "$joined"
+    else
+      echo "Keeping ZeroTier network: $joined"
+    fi
+  done < <(list_joined_zerotier_network_ids)
+}
+
+join_zerotier_networks() {
+  local network_id
+
   if [[ -z "$ZT_NETWORK_ID" ]] && zerotier_has_joined_network; then
     echo "ZeroTier is already joined to a network; skipping network join."
     return 0
@@ -277,12 +362,16 @@ join_zerotier_network() {
 
   require_zerotier_network_id
 
-  if zerotier-cli listnetworks 2>/dev/null | awk '{ print $3 }' | grep -qi "^${ZT_NETWORK_ID}$"; then
-    echo "Already joined ZeroTier network: $ZT_NETWORK_ID"
-  else
-    echo "Joining ZeroTier network: $ZT_NETWORK_ID"
-    zerotier-cli join "$ZT_NETWORK_ID"
-  fi
+  for network_id in "${ZT_NETWORK_IDS[@]}"; do
+    if zerotier-cli listnetworks 2>/dev/null | awk '{ print $3 }' | grep -qi "^${network_id}$"; then
+      echo "Already joined ZeroTier network: $network_id"
+    else
+      echo "Joining ZeroTier network: $network_id"
+      zerotier-cli join "$network_id"
+    fi
+  done
+
+  reconcile_zerotier_networks
 }
 
 ensure_zerotier_connected_for_resume() {
@@ -306,7 +395,7 @@ ensure_zerotier_connected_for_resume() {
   ensure_zerotier_service
   show_zerotier_node
   show_zerotier_networks
-  join_zerotier_network
+  join_zerotier_networks
 }
 
 run_script() {
@@ -576,7 +665,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --force)
-      FORCE_RESET=true
+      FORCE=true
       NONINTERACTIVE=true
       PASSTHROUGH_ARGS+=("$1")
       shift
@@ -715,7 +804,7 @@ fi
 
 if [[ -n "$RESET_STEP" ]]; then
   echo "== Reset/reinstall management =="
-  if $FORCE_RESET || is_true "$NONINTERACTIVE"; then
+  if $FORCE || is_true "$NONINTERACTIVE"; then
     run_script "scripts/reset-reinstall.sh" --reset "$RESET_STEP" --force
   else
     run_script "scripts/reset-reinstall.sh" --reset "$RESET_STEP"
@@ -772,7 +861,7 @@ if should_run zerotier; then
   fi
 
   show_zerotier_node
-  join_zerotier_network
+  join_zerotier_networks
   show_zerotier_networks
 fi
 
