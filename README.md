@@ -155,6 +155,8 @@ sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 
 If `ZEROTIER_API_TOKEN_FILE` (preferred) or `ZEROTIER_API_TOKEN` is set, the proxy step calls the ZeroTier Central API (`POST /api/v1/network/{networkID}/member/{memberID}` with `{"config":{"authorized":true}}`) so fresh joins can be auto-authorized before address detection retries continue. `ZEROTIER_API_TOKEN_FILE` must be root-owned and not group/other writable.
 
+`--harden` uses the same ZeroTier Central API token inputs to apply the recommended starter Flow Rules from the security notes below: SSH (`22/tcp`), HTTP (`80/tcp`), HTTPS (`443/tcp`), default-deny for other new TCP connections, then allow remaining reply/control traffic. If more than one ZeroTier network is joined, pass `-n NETWORK_ID` so the script knows which network to update.
+
 `-sad` skips the interactive Control UI device approval step. Run it later after opening the printed tokenized URL in the browser/profile you want to approve:
 
 ```bash
@@ -178,6 +180,7 @@ ZT_NETWORK_ID=YOUR_ZEROTIER_NETWORK_ID
 ADMIN_USER=ocadmin
 ZT_ADDRESS_TIMEOUT=300
 ZEROTIER_API_TOKEN_FILE=/root/zerotier-central.token
+HARDEN_ZEROTIER=true
 GATEWAY_TOKEN=optional-existing-token
 ```
 
