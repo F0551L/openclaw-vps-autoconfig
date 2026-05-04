@@ -58,7 +58,7 @@ YOUR_ZEROTIER_CENTRAL_API_TOKEN
 sudo bash clawtier.sh -f p -sad
 ```
 
-To answer the OpenClaw onboarding prompts yourself instead of using opinionated local defaults, omit `-ocd`:
+To answer the OpenClaw onboarding prompts yourself instead of skipping onboarding for later, omit `-ocd`:
 
 ```bash
 sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -sad
@@ -151,7 +151,7 @@ sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 
 `--zerotier-network-id` is also accepted as a longer alias for `-n`.
 
-`-ocd` / `-ud` / `--openclaw-defaults` / `--use-defaults` runs OpenClaw Docker setup with opinionated local defaults. It skips the interactive onboarding wizard, lets the Docker setup generate or reuse the gateway token, and leaves provider/account configuration for later.
+`-ocd` / `-ud` / `--openclaw-defaults` / `--use-defaults` runs OpenClaw Docker setup in a non-interactive mode that skips the interactive onboarding wizard for later completion. It does not currently apply opinionated onboarding defaults; Docker still generates or reuses the gateway token, and provider/account configuration remains for a later manual pass.
 
 If `ZEROTIER_API_TOKEN_FILE` (preferred) or `ZEROTIER_API_TOKEN` is set, the proxy step calls the ZeroTier Central API (`POST /api/v1/network/{networkID}/member/{memberID}` with `{"config":{"authorized":true}}`) so fresh joins can be auto-authorized before address detection retries continue. `ZEROTIER_API_TOKEN_FILE` must be root-owned and not group/other writable.
 
@@ -522,5 +522,6 @@ Future option:
 * Restrict SSH access to ZeroTier after initial provisioning
 * Automated rebuild workflow
 * Optional SSH hardening script
+* Investigate options for automatically configuring OpenClaw onboarding with opinionated defaults
 
 ---
