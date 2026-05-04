@@ -24,6 +24,7 @@ UPDATE_SOURCE="${UPDATE_SOURCE:-}"
 UPDATE_REF="${UPDATE_REF:-}"
 RESET_STEP="${RESET_STEP:-}"
 FORCE_RESET=false
+REINSTALL_AFTER_RESET=false
 ENV_FILE="${ENV_FILE:-}"
 PASSTHROUGH_ARGS=()
 
@@ -42,7 +43,9 @@ Options:
   -s, -source, --update-source URL
                               Override Git source for script updates.
   -ref, --update-ref REF       Override Git ref for script updates. Default: current branch.
-  -r, --reset STEP             Reset/reinstall from STEP with cascade handling.
+  -r, --reset STEP             Reset/reinstall from STEP or mode with cascade handling.
+                              Modes: data/clawtier-data, full/all.
+  --reinstall                  Continue bootstrap after --reset completes.
   --force                      Force reset without y/n prompt (used with --reset).
   -ef, --env-file FILE         Load bootstrap environment values from FILE.
   -y, --non-interactive       Never prompt; fail or skip when input is missing.
@@ -97,6 +100,7 @@ Examples:
   sudo bash clawtier.sh -uc all
   sudo bash clawtier.sh -uc c,oc,zt
   sudo bash clawtier.sh -r zt --force
+  sudo bash clawtier.sh --reset full --reinstall --force -n 0123456789abcdef -ocd
 EOF
 }
 
@@ -115,6 +119,22 @@ step_number() {
       usage >&2
       exit 1
       ;;
+  esac
+}
+
+normalize_reset_target() {
+  case "$1" in
+    data|clawtier-data|wipe-data|delete-data|app-data) echo "data" ;;
+    full|all|scratch|from-scratch|full-reset) echo "full" ;;
+    *) step_number "$1" >/dev/null; echo "$1" ;;
+  esac
+}
+
+reset_reinstall_start_step() {
+  case "$(normalize_reset_target "$1")" in
+    full) echo "base" ;;
+    data) echo "zerotier" ;;
+    *) echo "$1" ;;
   esac
 }
 
@@ -547,8 +567,13 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       PASSTHROUGH_ARGS+=("$1" "$2")
-      step_number "$RESET_STEP" >/dev/null
+      normalize_reset_target "$RESET_STEP" >/dev/null
       shift 2
+      ;;
+    --reinstall|--reset-reinstall|--reinstall-after-reset)
+      REINSTALL_AFTER_RESET=true
+      PASSTHROUGH_ARGS+=("$1")
+      shift
       ;;
     --force)
       FORCE_RESET=true
@@ -659,6 +684,11 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+if $REINSTALL_AFTER_RESET && [[ -z "$RESET_STEP" ]]; then
+  echo "--reinstall requires --reset STEP."
+  exit 1
+fi
+
 export ADMIN_USER
 export LOCK_BOOTSTRAP_USER_ON_SUCCESS
 export NONINTERACTIVE
@@ -690,7 +720,14 @@ if [[ -n "$RESET_STEP" ]]; then
   else
     run_script "scripts/reset-reinstall.sh" --reset "$RESET_STEP"
   fi
-  exit 0
+
+  if ! $REINSTALL_AFTER_RESET; then
+    exit 0
+  fi
+
+  START_STEP="$(reset_reinstall_start_step "$RESET_STEP")"
+  echo "== Continuing bootstrap after reset =="
+  echo "Starting from step: $START_STEP"
 fi
 
 echo "== Bootstrap start =="

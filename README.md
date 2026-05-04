@@ -266,6 +266,30 @@ sudo bash clawtier.sh -ef /root/clawtier-bootstrap.env -y -n YOUR_ZEROTIER_NETWO
 sudo bash clawtier.sh -y -n YOUR_ZEROTIER_NETWORK_ID -ocd --no-wait-zt-address -sad
 ```
 
+### 6️⃣ Reset and rebuild
+
+For partial rebuilds, reset from a specific step and then rerun from that step:
+
+```bash
+sudo bash clawtier.sh --reset openclaw --force
+sudo OPENCLAW_FORCE_INSTALL=true bash clawtier.sh -f openclaw
+```
+
+For a ClawTier data wipe that keeps Docker and ZeroTier packages installed, use `data`:
+
+```bash
+sudo bash clawtier.sh --reset data --force
+sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -f zerotier -ocd
+```
+
+For a full local rebuild, use `full`. This removes the OpenClaw stack and proxy, purges Docker packages/data, purges ZeroTier packages/state, and deletes the managed admin user when it is safe to do so. If the script is invoked via that admin user, it skips deleting the current/invoking account.
+
+```bash
+sudo bash clawtier.sh --reset full --reinstall --force -n YOUR_ZEROTIER_NETWORK_ID -ocd
+```
+
+`--reinstall` continues bootstrap after cleanup. Without it, reset stops after cleanup and prints the suggested resume command.
+
 To lock the original sudo/bootstrap user after the `ocadmin` account is created successfully:
 
 ```bash
@@ -274,7 +298,7 @@ sudo bash clawtier.sh -n YOUR_ZEROTIER_NETWORK_ID -lbu
 
 ---
 
-### 6️⃣ Reboot (if required)
+### 7️⃣ Reboot (if required)
 
 ```bash
 sudo reboot
@@ -516,7 +540,6 @@ Future option:
 
 * Multi-network exposure support
 * ZeroTier route profile management with a fast override path for per-network defaults (including default-route behavior), plus interactive warnings when a selected network advertises catch-all routes (for example `0.0.0.0/0`) that require enabling Forward Traffic on the remote endpoint to avoid external connectivity loss and lockout
-* Full reset mode to uninstall everything and rebuild from scratch in one command
 * Distro-aware setup script
 * Optional script self-update when run from a Git repo, balancing safety with the existing opt-in update flag
 * Restrict SSH access to ZeroTier after initial provisioning
