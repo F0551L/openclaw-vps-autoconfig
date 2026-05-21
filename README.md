@@ -561,3 +561,26 @@ Future option:
 * Investigate options for automatically configuring OpenClaw onboarding with opinionated defaults
 
 ---
+
+---
+
+## 📄 Licensing model
+
+ClawTier uses a source-available licensing model intended to keep personal,
+educational, and internal business use free, while requiring a commercial
+license for paid third-party service offerings based on this project.
+
+Allowed without a separate commercial license:
+
+- Personal use
+- Educational use
+- Internal company use (including for-profit companies)
+
+Requires a commercial license:
+
+- Paid setup/deployment services for third parties
+- Paid hosting or managed operations services based on ClawTier
+- Paid "done-for-you" VPS/bootstrap offerings based on ClawTier
+
+See `LICENSE` for the legal terms and `COMMERCIAL-LICENSE.md` for commercial
+licensing contact details.

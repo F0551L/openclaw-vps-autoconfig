@@ -1,0 +1,41 @@
+ClawTier Community License v1.0
+Copyright (c) 2026 ClawTier contributors
+
+Permission is granted to any person obtaining a copy of this software and
+associated documentation files (the "Software") to use, copy, modify, and
+distribute the Software, subject to the conditions below.
+
+1) Permitted use
+   a) Personal use is permitted.
+   b) Educational use is permitted.
+   c) Internal business use is permitted, including use by for-profit
+      organizations for their own internal infrastructure and operations.
+
+2) Prohibited use without a commercial license
+   You may not, without a separate commercial license from the copyright
+   holder, use the Software to provide paid services to third parties where
+   the Software is a material part of the service. This includes, without
+   limitation:
+   a) paid setup, deployment, installation, or configuration services;
+   b) paid hosting or managed operations services;
+   c) paid "done-for-you" VPS/bootstrap offerings based on this Software.
+
+3) Redistribution
+   If you distribute the Software or modified versions, you must:
+   a) include this license text; and
+   b) clearly mark substantial changes.
+
+4) No trademark rights
+   This license does not grant rights to use project or author trademarks,
+   service marks, or logos.
+
+5) No warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+   FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+
+Commercial licensing inquiries: see COMMERCIAL-LICENSE.md.
