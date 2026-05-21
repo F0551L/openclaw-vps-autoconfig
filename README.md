@@ -6,6 +6,14 @@
 
 ---
 
+[![Current stable release](https://img.shields.io/github/v/release/F0551L/ClawTier?sort=semver)](https://github.com/F0551L/ClawTier/releases)
+
+## 📦 Release model
+
+ClawTier uses SemVer versioning, annotated `vX.Y.Z` tags, and release tags cut from `main`.
+See [docs/releases.md](docs/releases.md) for the full release process and hotfix/backport guidance.
+
+
 ## 🧭 Overview
 
 ClawTier defines a **baseline configuration** for a fresh VPS, with a focus on repeatability, minimal manual intervention, and keeping OpenClaw off the public internet where possible.
