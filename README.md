@@ -176,6 +176,8 @@ sudo clawtier -y -n YOUR_ZEROTIER_NETWORK_ID -au openclaw -ocd -sad
 
 If `ZEROTIER_API_TOKEN_FILE` (preferred) or `ZEROTIER_API_TOKEN` is set, the proxy step calls the ZeroTier Central API (`POST /api/v1/network/{networkID}/member/{memberID}` with `{"config":{"authorized":true}}`) so fresh joins can be auto-authorized before address detection retries continue. `ZEROTIER_API_TOKEN_FILE` must be root-owned and not group/other writable.
 
+`--harden` uses the same ZeroTier Central API token inputs to apply the recommended starter Flow Rules from the security notes below: SSH (`22/tcp`), HTTP (`80/tcp`), HTTPS (`443/tcp`), default-deny for other new TCP connections, then allow remaining reply/control traffic. If more than one ZeroTier network is joined, pass `-n NETWORK_ID` so the script knows which network to update.
+
 `-sad` skips the interactive Control UI device approval step. Run it later after opening the printed tokenized URL in the browser/profile you want to approve:
 
 ```bash
@@ -199,6 +201,7 @@ ZT_NETWORK_ID=YOUR_ZEROTIER_NETWORK_ID
 ADMIN_USER=ocadmin
 ZT_ADDRESS_TIMEOUT=300
 ZEROTIER_API_TOKEN_FILE=/root/zerotier-central.token
+HARDEN_ZEROTIER=true
 GATEWAY_TOKEN=optional-existing-token
 ```
 
@@ -263,7 +266,7 @@ Available steps:
 * `au`, `admin-user` — create a sudo-capable admin user, default `ocadmin`
 * `zt`, `zerotier` — install ZeroTier and join the requested network, or reuse an existing joined network
 * `d`, `docker` — install Docker, or start/enable an existing Docker service
-* `oc`, `openclaw` — install OpenClaw, or skip when an existing install is detected
+* `oc`, `openclaw` — install ClawDock then OpenClaw, or skip when an existing install is detected
 * `p`, `proxy` — expose OpenClaw to ZeroTier peers through Caddy
 * `ad`, `approve-device` — interactively approve a pending Control UI browser device
 * `rc`, `reboot-check` — check whether the VPS needs a reboot
@@ -376,7 +379,7 @@ This separation allows:
 * changing app stack without touching base config
 * easier rebuilds and experimentation
 
-[OpenClaw](https://github.com/openclaw/openclaw) is installed using its official Docker-based setup script, which manages its own containers and configuration.
+[OpenClaw](https://github.com/openclaw/openclaw) is installed using its official Docker-based setup script, which manages its own containers and configuration. ClawDock helpers are installed from the checked-out OpenClaw repository using the canonical `scripts/clawdock/clawdock-helpers.sh` path (with a compatibility fallback), immediately before running OpenClaw's setup script.
 By default, `scripts/install-openclaw.sh` checks out GitHub's latest OpenClaw release tag instead of repository HEAD. To pin or test a different ref:
 
 ```bash

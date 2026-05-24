@@ -68,6 +68,43 @@ resolve_openclaw_ref() {
   echo "$latest_ref"
 }
 
+install_clawdock() {
+  local helper_src helper_dest shell_rc
+  local -a helper_candidates=(
+    "scripts/clawdock/clawdock-helpers.sh"
+    "scripts/shell-helpers/clawdock-helpers.sh"
+  )
+
+  helper_src=""
+  for helper_src in "${helper_candidates[@]}"; do
+    if [[ -f "$helper_src" ]]; then
+      break
+    fi
+  done
+
+  if [[ -z "$helper_src" || ! -f "$helper_src" ]]; then
+    echo "Unable to find ClawDock helpers in the checked out OpenClaw ref."
+    echo "Expected one of: ${helper_candidates[*]}"
+    exit 1
+  fi
+
+  helper_dest="$HOME/.clawdock/clawdock-helpers.sh"
+  mkdir -p "$(dirname "$helper_dest")"
+  install -m 0644 "$helper_src" "$helper_dest"
+
+  for shell_rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [[ ! -f "$shell_rc" ]]; then
+      continue
+    fi
+
+    if ! grep -Fq 'source ~/.clawdock/clawdock-helpers.sh' "$shell_rc"; then
+      echo 'source ~/.clawdock/clawdock-helpers.sh' >> "$shell_rc"
+    fi
+  done
+
+  echo "ClawDock helpers installed to $helper_dest"
+}
+
 prepare_openclaw_defaults() {
   local setup_script="scripts/docker/setup.sh"
   local marker="OPENCLAW_SKIP_ONBOARDING"
@@ -115,6 +152,9 @@ echo "== Checking out OpenClaw ref: $OPENCLAW_RESOLVED_REF =="
 git -C "$OPENCLAW_DIR" checkout --force "$OPENCLAW_RESOLVED_REF"
 
 cd "$OPENCLAW_DIR"
+
+echo "== Installing ClawDock =="
+install_clawdock
 
 echo "== Running OpenClaw Docker setup =="
 if [[ "$OPENCLAW_SETUP_USE_DEFAULTS" == "true" ]]; then

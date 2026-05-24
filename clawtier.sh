@@ -11,6 +11,7 @@ ADMIN_USER="${ADMIN_USER:-ocadmin}"
 OPENCLAW_DEFAULTS=false
 LOCK_BOOTSTRAP_USER_ON_SUCCESS=false
 ADMIN_USER_READY=false
+HARDEN_ZEROTIER="${HARDEN_ZEROTIER:-false}"
 ZT_NETWORK_ID="${ZT_NETWORK_ID:-}"
 ZT_NETWORK_IDS=()
 NONINTERACTIVE="${NONINTERACTIVE:-false}"
@@ -64,6 +65,7 @@ Options:
   -au, --admin-user USER      Admin sudo user to create. Default: ocadmin.
   -sau, --skip-admin-user     Skip admin user creation.
   -lbu, --lock-bootstrap-user Lock the original sudo user after admin user setup succeeds.
+  --harden                    Apply the recommended ZeroTier Flow Rules baseline.
   -sd, --skip-docker          Skip Docker installation.
   -soc, --skip-openclaw       Skip OpenClaw installation.
   -ocd, -ud, --openclaw-defaults, --use-defaults
@@ -90,6 +92,7 @@ Environment:
   ADMIN_PASSWORD_FILE         File containing the admin user password.
   LOCK_BOOTSTRAP_USER_ON_SUCCESS
                               Set true to lock the original sudo user after admin user setup.
+  HARDEN_ZEROTIER             Set true to apply the recommended ZeroTier Flow Rules baseline.
 
 Examples:
   sudo clawtier -u -n 0123456789abcdef
@@ -98,6 +101,7 @@ Examples:
   sudo clawtier -n 0123456789abcdef -f d
   sudo clawtier -n 0123456789abcdef -f p
   sudo clawtier -n 0123456789abcdef -ocd -sad
+  sudo clawtier -n 0123456789abcdef --harden
   sudo clawtier -f ad
   sudo clawtier -uc all
   sudo clawtier -uc c,oc,zt
@@ -396,6 +400,156 @@ join_zerotier_networks() {
   done
 
   reconcile_zerotier_networks
+}
+
+ensure_jq_installed() {
+  if command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Installing jq for ZeroTier Central API payload handling..."
+  apt-get update
+  apt-get install -y jq
+}
+
+load_zerotier_api_token() {
+  local perms
+
+  if [[ -z "$ZEROTIER_API_TOKEN_FILE" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$ZEROTIER_API_TOKEN_FILE" ]]; then
+    echo "ZeroTier API token file not found: $ZEROTIER_API_TOKEN_FILE"
+    exit 1
+  fi
+
+  if [[ "$(stat -c "%u" "$ZEROTIER_API_TOKEN_FILE")" != "0" ]]; then
+    echo "ZeroTier API token file must be owned by root: $ZEROTIER_API_TOKEN_FILE"
+    exit 1
+  fi
+
+  perms="$(stat -c "%A" "$ZEROTIER_API_TOKEN_FILE")"
+  if [[ "${perms:5:1}" == "w" || "${perms:8:1}" == "w" ]]; then
+    echo "ZeroTier API token file must not be writable by group or other users: $ZEROTIER_API_TOKEN_FILE"
+    echo "Run: sudo chmod 600 $ZEROTIER_API_TOKEN_FILE"
+    exit 1
+  fi
+
+  ZEROTIER_API_TOKEN="$(head -n 1 "$ZEROTIER_API_TOKEN_FILE" | tr -d '\r')"
+}
+
+resolve_zerotier_network_id_for_api() {
+  local networks count network_id
+
+  if [[ -n "$ZT_NETWORK_ID" ]]; then
+    echo "$ZT_NETWORK_ID"
+    return 0
+  fi
+
+  networks="$(zerotier-cli listnetworks 2>/dev/null || true)"
+  count="$(awk '/^200 listnetworks/ { count += 1 } END { print count + 0 }' <<<"$networks")"
+
+  if [[ "$count" -eq 1 ]]; then
+    awk '/^200 listnetworks/ { print $3; exit }' <<<"$networks"
+    return 0
+  fi
+
+  if [[ "$count" -eq 0 ]]; then
+    echo "No joined ZeroTier networks found; pass -n NETWORK_ID before using --harden." >&2
+  else
+    echo "Multiple joined ZeroTier networks found; pass -n NETWORK_ID with --harden." >&2
+  fi
+  exit 1
+}
+
+default_zerotier_flow_rules_source() {
+  cat <<'EOF'
+# Allow SSH
+accept
+  ipprotocol tcp
+  and dport 22;
+
+# Allow HTTP/HTTPS
+accept
+  ipprotocol tcp
+  and dport 80 or dport 443;
+
+# Block new TCP connections that are not explicitly allowed
+break
+  chr tcp_syn
+  and not chr tcp_ack;
+
+# Allow remaining traffic (reply packets, ICMP, other required protocols)
+accept;
+EOF
+}
+
+harden_zerotier_network() {
+  local network_id api_url response_file network_json rules_source payload http_code
+
+  if ! is_true "$HARDEN_ZEROTIER"; then
+    return 0
+  fi
+
+  echo "== Applying ZeroTier Flow Rules hardening =="
+  load_zerotier_api_token
+
+  if [[ -z "$ZEROTIER_API_TOKEN" ]]; then
+    echo "--harden requires ZEROTIER_API_TOKEN_FILE or ZEROTIER_API_TOKEN."
+    exit 1
+  fi
+
+  ensure_jq_installed
+  network_id="$(resolve_zerotier_network_id_for_api)"
+
+  if [[ ! "$network_id" =~ ^[0-9a-fA-F]{16}$ ]]; then
+    echo "Invalid ZeroTier Network ID format: $network_id"
+    echo "Expected a 16-character hexadecimal network ID."
+    exit 1
+  fi
+
+  api_url="https://api.zerotier.com/api/v1/network/${network_id}"
+  response_file="$(mktemp)"
+
+  echo "Network ID: $network_id"
+  http_code="$(curl -sS -o "$response_file" -w '%{http_code}' \
+    -H "Authorization: token ${ZEROTIER_API_TOKEN}" \
+    "$api_url" || true)"
+
+  if [[ ! "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+    echo "ZeroTier Central network fetch failed (HTTP ${http_code:-unknown})."
+    if [[ -s "$response_file" ]]; then
+      cat "$response_file"
+      echo ""
+    fi
+    rm -f "$response_file"
+    exit 1
+  fi
+
+  network_json="$(cat "$response_file")"
+  rules_source="$(default_zerotier_flow_rules_source)"
+  payload="$(jq --arg rulesSource "$rules_source" '.rulesSource = $rulesSource' <<<"$network_json")"
+
+  http_code="$(curl -sS -o "$response_file" -w '%{http_code}' -X POST \
+    -H "Authorization: token ${ZEROTIER_API_TOKEN}" \
+    -H 'Content-Type: application/json' \
+    --data "$payload" \
+    "$api_url" || true)"
+
+  if [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+    echo "ZeroTier Flow Rules hardening applied (HTTP ${http_code})."
+    rm -f "$response_file"
+    return 0
+  fi
+
+  echo "ZeroTier Flow Rules hardening failed (HTTP ${http_code:-unknown})."
+  if [[ -s "$response_file" ]]; then
+    cat "$response_file"
+    echo ""
+  fi
+  rm -f "$response_file"
+  exit 1
 }
 
 ensure_zerotier_connected_for_resume() {
@@ -755,6 +909,11 @@ while [[ $# -gt 0 ]]; do
       PASSTHROUGH_ARGS+=("$1")
       shift
       ;;
+    --harden)
+      HARDEN_ZEROTIER=true
+      PASSTHROUGH_ARGS+=("$1")
+      shift
+      ;;
     --skip-docker|--no-docker|-sd)
       INSTALL_DOCKER=false
       PASSTHROUGH_ARGS+=("$1")
@@ -805,6 +964,7 @@ if $REINSTALL_AFTER_RESET && [[ -z "$RESET_STEP" ]]; then
 fi
 
 export ADMIN_USER
+export HARDEN_ZEROTIER
 export LOCK_BOOTSTRAP_USER_ON_SUCCESS
 export NONINTERACTIVE
 export WAIT_ZT_ADDRESS
@@ -892,6 +1052,7 @@ if should_run zerotier; then
   show_zerotier_node
   join_zerotier_networks
   show_zerotier_networks
+  harden_zerotier_network
 fi
 
 if should_run admin-user; then
